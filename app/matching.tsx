@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Button, Alert } from 'react-native';
 import { useAuth } from '../providers/SessionProvider';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { router } from 'expo-router';
 
 export default function MatchingScreen() {
   const { session } = useAuth();
@@ -31,12 +32,34 @@ export default function MatchingScreen() {
     const userGroupId = profileData.group_id;
     setMyGroupId(userGroupId);
 
-    // Then, fetch all active groups, excluding the user's own group
-    const { data, error } = await supabase
+    // Then, get a list of all group IDs this user's group has already swiped on
+    const { data: swipedGroups, error: swipesError } = await supabase
+      .from('swipes')
+      .select('swiped_group_id')
+      .eq('swiper_group_id', userGroupId);
+
+    if (swipesError) {
+      Alert.alert('Error', 'Failed to fetch your previous swipes.');
+      console.error(swipesError);
+      return;
+    }
+
+    const swipedGroupIds = swipedGroups.map(s => s.swiped_group_id);
+
+    // Finally, fetch all active groups, excluding the user's own group
+    // and any groups they have already swiped on.
+    let query = supabase
       .from('groups')
       .select('*')
       .eq('is_active', true)
       .not('id', 'eq', userGroupId); // Exclude my own group
+
+    // Only add the filter if there are groups to exclude
+    if (swipedGroupIds.length > 0) {
+      query = query.not('id', 'in', `(${swipedGroupIds.join(',')})`); // Exclude already swiped groups
+    }
+      
+    const { data, error } = await query;
 
     if (error) {
       Alert.alert('Error', 'Failed to fetch active groups.');
@@ -64,15 +87,17 @@ export default function MatchingScreen() {
     } else {
       // Check for a match
       if (liked) {
-        checkForMatch(swipedGroup.id);
+        const didMatch = await checkForMatch(swipedGroup.id);
+        // If a match was found and we navigated away, stop here.
+        if (didMatch) return;
       }
       // Move to the next group
       setCurrentGroupIndex(currentGroupIndex + 1);
     }
   };
 
-  const checkForMatch = async (swipedGroupId: string) => {
-    if (!myGroupId) return;
+  const checkForMatch = async (swipedGroupId: string): Promise<boolean> => {
+    if (!myGroupId) return false;
 
     // Check if the other group has also liked us
     const { data, error } = await supabase
@@ -84,11 +109,53 @@ export default function MatchingScreen() {
       .single();
 
     if (data && !error) {
-      Alert.alert("It's a Match!", 'You and the other group have liked each other.');
-      // Here, we would create a chat room, etc.
+      // It's a match! Call the RPC function to create a new match record.
+      const { data: matchData, error: matchError } = await supabase
+        .rpc('create_new_match', {
+          group_1_id: myGroupId,
+          group_2_id: swipedGroupId,
+        })
+
+      if (matchError) {
+        // Error code '23505' is for unique constraint violation
+        if (matchError.code === '23505') {
+          // A match already exists, so we need to find it and navigate to it.
+          const { data: existingMatch, error: fetchError } = await supabase
+            .from('matches')
+            .select('id')
+            .or(`and(group_1.eq.${myGroupId},group_2.eq.${swipedGroupId}),and(group_1.eq.${swipedGroupId},group_2.eq.${myGroupId})`)
+            .single();
+          
+          if (fetchError) {
+            Alert.alert('Error', 'Failed to retrieve existing match.');
+            console.error(fetchError);
+          } else if (existingMatch) {
+            router.push(`/chat/${existingMatch.id}`);
+            return true;
+          }
+        } else {
+          Alert.alert('Error', 'Failed to create a match record.');
+          console.error(matchError);
+        }
+      } else {
+        Alert.alert("It's a Match!", 'You and the other group have liked each other.');
+        // Navigate to the chat screen for the new match
+        router.push(`/chat/${matchData}`);
+        return true; // Indicate that a match was found and we navigated
+      }
     }
+    return false; // No match was found
   };
 
+
+  if (groups.length === 0) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Looking for groups...</Text>
+        <Text>There are no active groups right now. Check back soon!</Text>
+      </View>
+    );
+  }
 
   if (currentGroupIndex >= groups.length) {
     return (

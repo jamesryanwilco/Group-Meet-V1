@@ -93,32 +93,15 @@ export default function HomeScreen() {
       return;
     }
 
-    // 1. Create the new group
-    const { data: newGroup, error: createError } = await supabase
-      .from('groups')
-      .insert({
-        name: groupName,
-        bio: groupBio,
-        admin_id: session?.user.id,
-      })
-      .select()
-      .single();
+    // Call the RPC function to create the group and update the profile
+    const { error } = await supabase.rpc('create_new_group', {
+      group_name: groupName,
+      group_bio: groupBio,
+    });
 
-    if (createError) {
+    if (error) {
       Alert.alert('Error', 'Failed to create group.');
-      console.error(createError);
-      return;
-    }
-
-    // 2. Update the user's profile with the new group_id
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ group_id: newGroup.id })
-      .eq('id', session?.user.id);
-
-    if (updateError) {
-      Alert.alert('Error', "Failed to link user to group.");
-      console.error(updateError);
+      console.error(error);
     } else {
       Alert.alert('Success', 'Group created successfully!');
       // Refetch data to show the new group view
