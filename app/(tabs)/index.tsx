@@ -1,98 +1,217 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { View, Text, StyleSheet, TextInput, Button, Alert } from 'react-native';
+import { useAuth } from '../../providers/SessionProvider';
+import { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { router } from 'expo-router';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const { session } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+  const [group, setGroup] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  // States for creating a group
+  const [groupName, setGroupName] = useState('');
+  const [groupBio, setGroupBio] = useState('');
+
+  useEffect(() => {
+    if (session) {
+      setLoading(true);
+      fetchProfileAndGroup();
+    }
+  }, [session]);
+
+  const fetchProfileAndGroup = async (retries = 3) => {
+    if (!session?.user) {
+      setLoading(false);
+      return;
+    }
+
+    // Fetch user profile
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profileError) {
+      // If it's a "0 rows" error and we still have retries left
+      if (profileError.code === 'PGRST116' && retries > 0) {
+        console.log(`Profile not found, retrying... Attempts left: ${retries - 1}`);
+        // Wait 1 second before trying again
+        setTimeout(() => fetchProfileAndGroup(retries - 1), 1000);
+        return; // Exit here to wait for the retry
+      } else {
+        Alert.alert('Error', 'Failed to fetch user profile.');
+        console.error(profileError);
+        setLoading(false);
+      }
+    } else {
+      setProfile(profileData);
+      // If user has a group, fetch group details
+      if (profileData?.group_id) {
+        const { data: groupData, error: groupError } = await supabase
+          .from('groups')
+          .select('*')
+          .eq('id', profileData.group_id)
+          .single();
+
+        if (groupError) {
+          Alert.alert('Error', 'Failed to fetch group details.');
+          console.error(groupError);
+        } else {
+          setGroup(groupData);
+        }
+      }
+      setLoading(false);
+    }
+  };
+
+  const goActive = async () => {
+    if (!group) return;
+
+    const expiresIn = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+    const activeUntil = new Date(Date.now() + expiresIn).toISOString();
+
+    const { error } = await supabase
+      .from('groups')
+      .update({ is_active: true, active_until: activeUntil })
+      .eq('id', group.id);
+
+    if (error) {
+      Alert.alert('Error', 'Failed to activate group.');
+      console.error(error);
+    } else {
+      Alert.alert('Success', 'Your group is now active for 4 hours!');
+      fetchProfileAndGroup(); // Refresh data
+    }
+  };
+
+  const createGroup = async () => {
+    if (!groupName.trim()) {
+      Alert.alert('Error', 'Please enter a group name.');
+      return;
+    }
+
+    // 1. Create the new group
+    const { data: newGroup, error: createError } = await supabase
+      .from('groups')
+      .insert({
+        name: groupName,
+        bio: groupBio,
+        admin_id: session?.user.id,
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      Alert.alert('Error', 'Failed to create group.');
+      console.error(createError);
+      return;
+    }
+
+    // 2. Update the user's profile with the new group_id
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ group_id: newGroup.id })
+      .eq('id', session?.user.id);
+
+    if (updateError) {
+      Alert.alert('Error', "Failed to link user to group.");
+      console.error(updateError);
+    } else {
+      Alert.alert('Success', 'Group created successfully!');
+      // Refetch data to show the new group view
+      fetchProfileAndGroup();
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
+  // If user is in a group, display group info
+  if (group) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Your Group</Text>
+        <Text style={styles.groupName}>{group.name}</Text>
+        <Text>{group.bio}</Text>
+
+        {group.is_active ? (
+          <View style={styles.activeContainer}>
+            <Text style={styles.activeText}>Your group is currently active!</Text>
+            <Text>Expires at: {new Date(group.active_until).toLocaleTimeString()}</Text>
+            <Button title="Go to Swiping" onPress={() => router.push('/matching')} />
+          </View>
+        ) : (
+          <Button title="Go Active for 4 Hours" onPress={goActive} />
+        )}
+      </View>
+    );
+  }
+
+  // If user is not in a group, display create group form
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Create a New Group</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Group Name"
+        value={groupName}
+        onChangeText={setGroupName}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Group Bio (Optional)"
+        value={groupBio}
+        onChangeText={setGroupBio}
+      />
+      <Button title="Create Group" onPress={createGroup} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    padding: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  groupName: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  input: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 12,
+    marginBottom: 16,
+    borderRadius: 8,
+  },
+  activeContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#e0ffe0',
+    borderRadius: 10,
+  },
+  activeText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'green',
+    marginBottom: 10,
   },
 });
