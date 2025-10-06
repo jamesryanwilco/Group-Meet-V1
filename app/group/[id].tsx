@@ -128,8 +128,8 @@ export default function GroupDetailsScreen() {
     }
   };
 
-  const goActive = async () => {
-    const { error } = await supabase.rpc('set_active_group', { p_group_id: groupId });
+  const activateGroup = async () => {
+    const { error } = await supabase.rpc('activate_group', { p_group_id: groupId });
 
     if (error) {
       Alert.alert('Error', 'Failed to activate group.');
@@ -137,27 +137,56 @@ export default function GroupDetailsScreen() {
     } else {
       Alert.alert('Success', 'Your group is now active for 4 hours!');
       setIsActive(true);
-      router.push('/matching');
     }
   };
 
-  const leaveGroup = async () => {
-    Alert.alert('Confirm', 'Are you sure you want to leave this group?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Leave',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase.rpc('leave_group', { p_group_id: groupId });
-          if (error) {
-            Alert.alert('Error', 'Failed to leave group.');
-          } else {
-            Alert.alert('Success', 'You have left the group.');
-            router.replace('/(tabs)');
-          }
+  const handleLeaveOrDelete = () => {
+    const isOwner = session?.user.id === group.owner_id;
+    console.log(`handleLeaveOrDelete called. User is owner: ${isOwner}`);
+
+    if (isOwner) {
+      // Logic for deleting the group
+      Alert.alert('Confirm Delete', 'Are you sure you want to permanently delete this group for everyone?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            console.log(`Attempting to call RPC: delete_group with group ID: ${groupId}`);
+            const { error } = await supabase.rpc('delete_group', { p_group_id: groupId });
+            if (error) {
+              console.error('Error deleting group:', error);
+              Alert.alert('Error', 'Failed to delete group.');
+            } else {
+              console.log('Successfully deleted group.');
+              Alert.alert('Success', 'Group has been deleted.');
+              router.replace('/(tabs)');
+            }
+          },
         },
-      },
-    ]);
+      ]);
+    } else {
+      // Logic for leaving the group
+      Alert.alert('Confirm Leave', 'Are you sure you want to leave this group?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            console.log(`Attempting to call RPC: leave_group with group ID: ${groupId}`);
+            const { error } = await supabase.rpc('leave_group', { p_group_id: groupId });
+            if (error) {
+              console.error('Error leaving group:', error);
+              Alert.alert('Error', 'Failed to leave group.');
+            } else {
+              console.log('Successfully left group.');
+              Alert.alert('Success', 'You have left the group.');
+              router.replace('/(tabs)');
+            }
+          },
+        },
+      ]);
+    }
   };
 
   if (loading || !group) {
@@ -198,7 +227,12 @@ export default function GroupDetailsScreen() {
         <FlatList
           data={members}
           keyExtractor={(item) => item.profiles.id}
-          renderItem={({ item }) => <Text style={styles.memberName}>{item.profiles.username}</Text>}
+          renderItem={({ item }) => (
+            <Text style={styles.memberName}>
+              {item.profiles.username}
+              {item.profiles.id === group.owner_id && ' (Admin)'}
+            </Text>
+          )}
         />
       </View>
 
@@ -215,14 +249,18 @@ export default function GroupDetailsScreen() {
       {isActive ? (
         <View style={styles.activeContainer}>
           <Text style={styles.activeText}>Your group is currently active!</Text>
-          <Button title="Go to Swiping" onPress={() => router.push('/matching')} />
+          <Button title="Start Swiping" onPress={() => router.push(`/matching?group_id=${groupId}`)} />
         </View>
       ) : (
-        <Button title="Go Active for 4 Hours" onPress={goActive} />
+        <Button title="Go Active for 4 Hours" onPress={activateGroup} />
       )}
 
       <View style={styles.leaveButtonContainer}>
-        <Button title="Leave Group" color="red" onPress={leaveGroup} />
+        <Button
+          title={isOwner ? 'Delete Group' : 'Leave Group'}
+          color="red"
+          onPress={handleLeaveOrDelete}
+        />
       </View>
     </View>
   );

@@ -31,11 +31,11 @@ This document provides a high-level overview of the app's features, broken down 
 
 ## 4. Swiping & Matching
 
-- **Matching Queue:** When a user's group is active, they can enter the matching screen to see other currently active groups.
+- **Matching Queue:** When a group is active, any member can initiate a swiping session for that group from its details screen.
 - **Filtering:** The matching queue automatically filters out:
     - The user's own group.
     - Any groups they have already swiped on in the current session.
-- **Swipe Actions:** Users can swipe "Like" or "Pass" on behalf of their active group.
+- **Swipe Actions:** Users can swipe "Like" or "Pass" on behalf of the group they are currently swiping for.
 - **Match Creation:** If two groups "Like" each other, a `match` is created in the database, which automatically opens a shared chat room.
 
 ## 5. Messaging

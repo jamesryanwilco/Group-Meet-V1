@@ -31,16 +31,13 @@ This document details the step-by-step user journey for the Group-to-Group Meetu
 
 ## 4. Going Active (Finding a Match)
 
-1.  **Select a Group:** From the "My Groups" list, the user chooses which group they want to represent for a potential meetup.
-2.  **Activate Session:** On the Group Details screen, any member can "Go Active." This makes their chosen group visible to other active groups for a set period (e.g., 4 hours).
-    *   A user can only have **one active group at a time**.
-3.  **Set Availability (Future Feature):**
-    *   *Note for future development:* This step could be expanded to include setting a time window and location radius for the active session.
-4.  **Confirmation:** The app confirms the group is now "active." The user can now proceed to the swiping interface.
+1.  **Activate Session:** On a group's detail screen, any member can tap "Go Active." This makes their group visible to other active groups for a set period (e.g., 4 hours). Multiple groups can be active simultaneously.
+2.  **Start Swiping:** Once a group is active, a "Start Swiping" button appears. Tapping this takes the user to the matching screen for that specific group.
+3.  **Confirmation:** The app confirms the group is now "active." The user can now proceed to the swiping interface.
 
 ## 5. Swiping & Matching
 
-1.  **Swipe Interface:** The user is presented with profile cards of other active groups. All swipes (likes/dislikes) are made on behalf of their currently active group.
+1.  **Swipe Interface:** The user is presented with profile cards of other active groups. All swipes are made on behalf of the group they started the session from.
     *   **Swipe Right:** "Interested"
     *   **Swipe Left:** "Not interested"
 2.  **It's a Match!:** When two groups swipe right on each other, a match screen is displayed.

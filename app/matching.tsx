@@ -2,65 +2,27 @@ import { View, Text, StyleSheet, Button, Alert, Image } from 'react-native';
 import { useAuth } from '../providers/SessionProvider';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 export default function MatchingScreen() {
-  const { session } = useAuth();
+  const { group_id: swipingGroupId } = useLocalSearchParams();
   const [groups, setGroups] = useState<any[]>([]);
   const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
-  const [myGroupId, setMyGroupId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchMyGroupIdAndActiveGroups();
-  }, [session]);
-
-  const fetchMyGroupIdAndActiveGroups = async () => {
-    if (!session?.user) return;
-
-    // First, get the current user's active group ID from their profile
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('active_group_id')
-      .eq('id', session.user.id)
-      .single();
-
-    if (profileError || !profileData?.active_group_id) {
-      Alert.alert('No Active Group', 'Please select a group and make it active before you start swiping.');
+    if (typeof swipingGroupId !== 'string') {
+      Alert.alert('Error', 'No group selected for swiping.');
       router.back();
       return;
     }
+    fetchActiveGroups(swipingGroupId);
+  }, [swipingGroupId]);
 
-    const userGroupId = profileData.active_group_id;
-    setMyGroupId(userGroupId);
-
-    // Then, get a list of all group IDs this user's group has already swiped on
-    const { data: swipedGroups, error: swipesError } = await supabase
-      .from('swipes')
-      .select('swiped_group_id')
-      .eq('swiper_group_id', userGroupId);
-
-    if (swipesError) {
-      Alert.alert('Error', 'Failed to fetch your previous swipes.');
-      console.error(swipesError);
-      return;
-    }
-
-    const swipedGroupIds = swipedGroups.map(s => s.swiped_group_id);
-
-    // Finally, fetch all active groups, excluding the user's own group
-    // and any groups they have already swiped on.
-    let query = supabase
-      .from('groups')
-      .select('*, group_photos(photo_url)')
-      .eq('is_active', true)
-      .not('id', 'eq', userGroupId); // Exclude my own group
-
-    // Only add the filter if there are groups to exclude
-    if (swipedGroupIds.length > 0) {
-      query = query.not('id', 'in', `(${swipedGroupIds.join(',')})`); // Exclude already swiped groups
-    }
-      
-    const { data, error } = await query;
+  const fetchActiveGroups = async (myGroupId: string) => {
+    // Call the RPC function to get a clean list of groups to swipe on.
+    // All filtering is now handled on the backend.
+    const { data, error } = await supabase
+      .rpc('get_groups_for_swiping', { p_swiping_group_id: myGroupId });
 
     if (error) {
       Alert.alert('Error', 'Failed to fetch active groups.');
@@ -71,13 +33,13 @@ export default function MatchingScreen() {
   };
 
   const handleSwipe = async (liked: boolean) => {
-    if (!myGroupId || currentGroupIndex >= groups.length) return;
+    if (typeof swipingGroupId !== 'string' || currentGroupIndex >= groups.length) return;
 
     const swipedGroup = groups[currentGroupIndex];
 
     // Record the swipe in the database
     const { error } = await supabase.from('swipes').insert({
-      swiper_group_id: myGroupId,
+      swiper_group_id: swipingGroupId,
       swiped_group_id: swipedGroup.id,
       liked: liked,
     });
@@ -89,7 +51,6 @@ export default function MatchingScreen() {
       // Check for a match
       if (liked) {
         const didMatch = await checkForMatch(swipedGroup.id);
-        // If a match was found and we navigated away, stop here.
         if (didMatch) return;
       }
       // Move to the next group
@@ -98,54 +59,49 @@ export default function MatchingScreen() {
   };
 
   const checkForMatch = async (swipedGroupId: string): Promise<boolean> => {
-    if (!myGroupId) return false;
+    if (typeof swipingGroupId !== 'string') return false;
 
     // Check if the other group has also liked us
     const { data, error } = await supabase
       .from('swipes')
       .select('*')
       .eq('swiper_group_id', swipedGroupId)
-      .eq('swiped_group_id', myGroupId)
+      .eq('swiped_group_id', swipingGroupId)
       .eq('liked', true)
       .single();
 
     if (data && !error) {
-      // It's a match! Call the RPC function to create a new match record.
+      // It's a match!
       const { data: matchData, error: matchError } = await supabase
         .rpc('create_new_match', {
-          group_1_id: myGroupId,
+          group_1_id: swipingGroupId,
           group_2_id: swipedGroupId,
         })
 
       if (matchError) {
-        // Error code '23505' is for unique constraint violation
-        if (matchError.code === '23505') {
-          // A match already exists, so we need to find it and navigate to it.
+        if (matchError.code === '23505') { // Unique constraint violation
           const { data: existingMatch, error: fetchError } = await supabase
             .from('matches')
             .select('id')
-            .or(`and(group_1.eq.${myGroupId},group_2.eq.${swipedGroupId}),and(group_1.eq.${swipedGroupId},group_2.eq.${myGroupId})`)
+            .or(`and(group_1.eq.${swipingGroupId},group_2.eq.${swipedGroupId}),and(group_1.eq.${swipedGroupId},group_2.eq.${swipingGroupId})`)
             .single();
           
           if (fetchError) {
             Alert.alert('Error', 'Failed to retrieve existing match.');
-            console.error(fetchError);
           } else if (existingMatch) {
             router.push(`/chat/${existingMatch.id}`);
             return true;
           }
         } else {
           Alert.alert('Error', 'Failed to create a match record.');
-          console.error(matchError);
         }
       } else {
         Alert.alert("It's a Match!", 'You and the other group have liked each other.');
-        // Navigate to the chat screen for the new match
         router.push(`/chat/${matchData}`);
-        return true; // Indicate that a match was found and we navigated
+        return true;
       }
     }
-    return false; // No match was found
+    return false;
   };
 
 

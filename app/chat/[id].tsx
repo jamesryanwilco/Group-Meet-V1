@@ -69,7 +69,9 @@ export default function ChatScreen() {
   }, [matchId]);
 
   const fetchMessages = async (page: number) => {
-    if (!matchId || allMessagesLoaded) return;
+    if (!matchId || allMessagesLoaded) {
+      return;
+    }
     
     const from = page * messagesPerPage;
     const to = from + messagesPerPage - 1;

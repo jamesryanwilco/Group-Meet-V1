@@ -34,7 +34,6 @@ This table stores public user data, linked to the `auth.users` table.
 | `username`   | `text`        |               | Is Unique                                    |
 | `updated_at` | `timestamptz` | `now()`       |                                              |
 | `avatar_url` | `text`        |               |                                              |
-| `active_group_id` | `uuid`   |               | Foreign Key to `groups.id` (optional)        |
 
 **Foreign Key Relation for `id`:**
 -   **Source Column:** `id`
@@ -248,47 +247,33 @@ using ( is_member_of_group(auth.uid(), id) );
 ### Policies for `swipes` Table
 
 ```sql
--- Allow users to insert a swipe for their active group
-create policy "Users can insert swipes for their active group."
-on public.swipes for insert
-with check (
-  swiper_group_id = (select active_group_id from public.profiles where id = auth.uid())
-);
+-- (Updated) Policies now check for group membership, not a single active group.
+drop policy if exists "Users can insert swipes for their active group." on public.swipes;
+drop policy if exists "Users can insert and view swipes for their active group." on public.swipes;
 
--- Allow users to view swipes involving their active group
-create policy "Users can view swipes involving their active group."
+create policy "Members can insert swipes for their group."
+on public.swipes for insert
+with check ( is_member_of_group(auth.uid(), swiper_group_id) );
+
+create policy "Members can view swipes involving their groups."
 on public.swipes for select
 using (
-  swiper_group_id = (select active_group_id from public.profiles where id = auth.uid())
-  or
-  swiped_group_id = (select active_group_id from public.profiles where id = auth.uid())
-);
-
--- (Updated) The previous policies were combined and corrected to allow inserts.
-drop policy if exists "Users can insert swipes for their active group." on public.swipes;
-drop policy if exists "Users can view swipes involving their active group." on public.swipes;
-
-create policy "Users can insert and view swipes for their active group."
-on public.swipes for all
-using (
-  swiper_group_id = (select active_group_id from public.profiles where id = auth.uid()) or
-  swiped_group_id = (select active_group_id from public.profiles where id = auth.uid())
-)
-with check (
-  swiper_group_id = (select active_group_id from public.profiles where id = auth.uid())
+  is_member_of_group(auth.uid(), swiper_group_id) OR
+  is_member_of_group(auth.uid(), swiped_group_id)
 );
 ```
 
 ### Policies for `matches` Table
 
 ```sql
--- Allow users to view matches they are a part of.
-create policy "Users can view matches involving their active group."
+-- (Updated) This policy now correctly allows users to see any match involving any of their groups.
+drop policy if exists "Users can view matches involving their active group." on public.matches;
+
+create policy "Users can view matches for any of their groups."
 on public.matches for select
 using (
-  (group_1 = (select active_group_id from public.profiles where id = auth.uid()))
-  or
-  (group_2 = (select active_group_id from public.profiles where id = auth.uid()))
+  group_1 IN (SELECT group_id FROM public.group_members WHERE user_id = auth.uid()) OR
+  group_2 IN (SELECT group_id FROM public.group_members WHERE user_id = auth.uid())
 );
 ```
 
@@ -409,11 +394,18 @@ returns void as $$
 -- ... function body
 $$ language plpgsql security definer;
 
--- Allows a user to leave their current group. If the owner leaves, the group is deleted.
-create function public.leave_current_group()
+-- Allows a user to leave their current group.
+create function public.leave_group(p_group_id UUID)
 returns void as $$
 -- ... function body
-$$ language plpgsql;
+$$ language plpgsql volatile;
+
+-- Allows a group owner to delete their group.
+create function public.delete_group(p_group_id UUID)
+returns void as $$
+-- ... function body
+$$ language plpgsql security definer;
+
 
 ### Helper and Utility Functions
 
@@ -428,8 +420,9 @@ returns boolean as $$
   );
 $$ language sql stable security definer;
 
--- Sets a user's chosen group to active, and deactivates their other groups.
-create function set_active_group(p_group_id UUID)
+-- (Updated) Renamed and simplified function for activating a group.
+drop function if exists public.set_active_group(uuid);
+create function public.activate_group(p_group_id UUID)
 returns void as $$
 -- ... function body
 $$ language plpgsql security definer;
@@ -439,6 +432,20 @@ create function do_users_share_a_match(user_a_id UUID, user_b_id UUID)
 returns boolean as $$
 -- ... function body
 $$ language plpgsql security definer;
+```
+
+### Cascading Deletes
+
+To ensure data integrity, `ON DELETE CASCADE` is used on foreign keys. This means if a group is deleted, all its related data (members, photos, swipes, matches, and messages) will also be deleted automatically. The following scripts ensure this is set up correctly.
+
+```sql
+-- Run these commands to add cascading deletes to the schema.
+ALTER TABLE public.swipes DROP CONSTRAINT IF EXISTS swipes_swiper_group_id_fkey, ADD CONSTRAINT swipes_swiper_group_id_fkey FOREIGN KEY (swiper_group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+ALTER TABLE public.swipes DROP CONSTRAINT IF EXISTS swipes_swiped_group_id_fkey, ADD CONSTRAINT swipes_swiped_group_id_fkey FOREIGN KEY (swiped_group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+ALTER TABLE public.matches DROP CONSTRAINT IF EXISTS matches_group_1_fkey, ADD CONSTRAINT matches_group_1_fkey FOREIGN KEY (group_1) REFERENCES public.groups(id) ON DELETE CASCADE;
+ALTER TABLE public.matches DROP CONSTRAINT IF EXISTS matches_group_2_fkey, ADD CONSTRAINT matches_group_2_fkey FOREIGN KEY (group_2) REFERENCES public.groups(id) ON DELETE CASCADE;
+ALTER TABLE public.messages DROP CONSTRAINT IF EXISTS messages_match_id_fkey, ADD CONSTRAINT messages_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id) ON DELETE CASCADE;
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_active_group_id_fkey, ADD CONSTRAINT profiles_active_group_id_fkey FOREIGN KEY (active_group_id) REFERENCES public.groups(id) ON DELETE SET NULL;
 ```
 
 
@@ -495,27 +502,38 @@ from
 ### Policies for `messages` Table
 
 ```sql
--- Allow users to send messages in a match they are part of.
-create policy "Users can send messages in their matches."
+-- (Updated) Policies now check for group membership in the context of a match.
+drop policy if exists "Users can send messages in their matches." on public.messages;
+drop policy if exists "Users can view messages in their matches." on public.messages;
+drop policy if exists "Users can send messages in matches involving their active group." on public.messages;
+drop policy if exists "Users can view messages in matches involving their active group." on public.messages;
+
+create policy "Members can send messages in their matches."
 on public.messages for insert
 with check (
-  match_id in (
-    select id from public.matches where
-    (group_1 = (select active_group_id from public.profiles where id = auth.uid()))
-    or
-    (group_2 = (select active_group_id from public.profiles where id = auth.uid()))
+  exists (
+    select 1 from public.matches
+    where id = match_id and (
+      is_member_of_group(auth.uid(), group_1) OR
+      is_member_of_group(auth.uid(), group_2)
+    )
   )
 );
 
--- Allow users to view messages from matches they are a part of.
-create policy "Users can view messages in their matches."
+-- (Updated) This policy is now more direct to ensure users can always see messages in their matches.
+drop policy if exists "Members can view messages in their matches." on public.messages;
+
+create policy "Members can view messages in their matches."
 on public.messages for select
 using (
-  match_id in (
-    select id from public.matches where
-    (group_1 = (select active_group_id from public.profiles where id = auth.uid()))
-    or
-    (group_2 = (select active_group_id from public.profiles where id = auth.uid()))
+  exists (
+    select 1
+    from public.matches m
+    where m.id = messages.match_id
+      and (
+        is_member_of_group(auth.uid(), m.group_1) OR
+        is_member_of_group(auth.uid(), m.group_2)
+      )
   )
 );
 ```
