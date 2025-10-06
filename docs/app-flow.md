@@ -16,26 +16,31 @@ This document details the step-by-step user journey for the Group-to-Group Meetu
 
 ## 3. Group Creation & Management
 
-1.  **Create or Join a Group:**
-    *   **Create:** The user becomes the group's first member and admin. They get a unique invite link/code to share.
-    *   **Join:** A user who has an invite link/code can join an existing group.
-2.  **Group Profile Setup:** The group admin sets up the profile:
-    *   **Group Photo:** A picture of the group together.
-    *   **Group Name:** The name of their squad (e.g., "The Adventurers").
-    *   **Short Bio:** A fun, brief description of the group's vibe.
-    *   **Member List:** Shows the verified members of the group (2-6 people).
+1.  **My Groups Hub:** After signing in, the user lands on a "My Groups" screen. This is the central hub for all their group activities.
+    *   From here, they can see a list of all groups they are a member of.
+    *   They can also choose to **Create a New Group** or **Join a Group**.
+2.  **Creating a Group:**
+    *   The user provides a group name, photo, and bio.
+    *   Upon creation, they become the group's **owner** and are automatically added as a member.
+3.  **Joining a Group:**
+    *   To join, a user must have a unique invite code shared with them by a group's owner.
+    *   They enter the code to be added to that group's member list.
+4.  **Group Details:**
+    *   Tapping on any group from the "My Groups" list takes the user to that group's detail screen.
+    *   This screen shows the group's profile (photo, bio) and a list of all its current members.
 
 ## 4. Going Active (Finding a Match)
 
-1.  **Activate Session:** From the home screen, the group admin can "Go Active."
-2.  **Set Availability:** The admin defines the meetup parameters for the current session:
-    *   **Time Window:** e.g., "Tonight, 7 PM - 11 PM".
-    *   **Location Radius:** e.g., "Within 5 miles of our current location".
-3.  **Confirmation:** The app confirms the group is now "active" and visible to other active groups that match their criteria. Other group members are notified.
+1.  **Select a Group:** From the "My Groups" list, the user chooses which group they want to represent for a potential meetup.
+2.  **Activate Session:** On the Group Details screen, any member can "Go Active." This makes their chosen group visible to other active groups for a set period (e.g., 4 hours).
+    *   A user can only have **one active group at a time**.
+3.  **Set Availability (Future Feature):**
+    *   *Note for future development:* This step could be expanded to include setting a time window and location radius for the active session.
+4.  **Confirmation:** The app confirms the group is now "active." The user can now proceed to the swiping interface.
 
 ## 5. Swiping & Matching
 
-1.  **Swipe Interface:** The admin is presented with profile cards of other active groups.
+1.  **Swipe Interface:** The user is presented with profile cards of other active groups. All swipes (likes/dislikes) are made on behalf of their currently active group.
     *   **Swipe Right:** "Interested"
     *   **Swipe Left:** "Not interested"
 2.  **It's a Match!:** When two groups swipe right on each other, a match screen is displayed.

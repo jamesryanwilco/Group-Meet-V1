@@ -6,15 +6,41 @@ import { Link } from 'expo-router';
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
 
   const signUpWithEmail = async () => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) Alert.alert('Error', error.message);
+    if (!username.trim()) {
+      Alert.alert('Error', 'Please enter a username.');
+      return;
+    }
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username: username.trim(),
+        },
+      },
+    });
+
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      Alert.alert('Success', 'Please check your email to confirm your sign-up!');
+    }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Sign Up</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Username"
+        value={username}
+        onChangeText={setUsername}
+        autoCapitalize="none"
+      />
       <TextInput
         style={styles.input}
         placeholder="Email"

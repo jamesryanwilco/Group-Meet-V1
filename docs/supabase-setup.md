@@ -33,8 +33,8 @@ This table stores public user data, linked to the `auth.users` table.
 | `id`         | `uuid`        |               | Primary Key, Foreign Key to `auth.users.id`  |
 | `username`   | `text`        |               | Is Unique                                    |
 | `updated_at` | `timestamptz` | `now()`       |                                              |
-| `group_id`   | `uuid`        |               | Foreign Key to `groups.id` (optional)        |
 | `avatar_url` | `text`        |               |                                              |
+| `active_group_id` | `uuid`   |               | Foreign Key to `groups.id` (optional)        |
 
 **Foreign Key Relation for `id`:**
 -   **Source Column:** `id`
@@ -58,9 +58,43 @@ This table stores information about each friend group.
 | `name`       | `text`        |                     |                                         |
 | `bio`        | `text`        |                     |                                         |
 | `photo_url`  | `text`        |                     |                                         |
-| `admin_id`   | `uuid`        |                     | Foreign Key to `profiles.id` (optional) |
+| `owner_id`   | `uuid`        |                     | Foreign Key to `profiles.id`            |
 | `is_active`  | `bool`        | `false`             | Marks if a group is actively seeking a match |
 | `active_until`| `timestamptz`|                     | Expiration time for the active status     |
+
+### `group_members` Table
+
+This table creates a many-to-many relationship between users (`profiles`) and `groups`.
+
+-   **Table Name:** `group_members`
+-   **Enable Row Level Security (RLS):** Yes
+
+**Columns:**
+
+| Name       | Type   | Default Value | Notes                               |
+| :--------- | :----- | :------------ | :---------------------------------- |
+| `group_id` | `uuid` |               | Primary Key, FK to `groups.id`      |
+| `user_id`  | `uuid` |               | Primary Key, FK to `profiles.id`    |
+| `role`     | `text` | `'member'`    | e.g., 'owner' or 'member'           |
+
+### `group_invites` Table
+
+This table stores unique, expiring invitation codes for groups.
+
+-   **Table Name:** `group_invites`
+-   **Enable Row Level Security (RLS):** Yes
+
+**Columns:**
+
+| Name          | Type          | Default Value      | Notes                      |
+| :------------ | :------------ | :----------------- | :------------------------- |
+| `id`          | `uuid`        | `gen_random_uuid()`| Primary Key                |
+| `group_id`    | `uuid`        |                    | FK to `groups.id`          |
+| `invite_code` | `text`        | (custom function)  | Unique, generated code     |
+| `created_by`  | `uuid`        |                    | FK to `profiles.id`        |
+| `created_at`  | `timestamptz` | `now()`            |                            |
+| `expires_at`  | `timestamptz` | `now() + 24h`      |                            |
+
 
 ### `swipes` Table
 
@@ -149,6 +183,20 @@ using ( auth.uid() = id );
 create policy "Users can update their own profile."
 on public.profiles for update
 using ( auth.uid() = id );
+
+-- (Updated) Allow users to view the profiles of fellow group members.
+drop policy if exists "Users can view their own profile." on public.profiles;
+create policy "Users can view profiles of self and fellow group members."
+on public.profiles for select
+using (
+  id = auth.uid() or
+  exists (
+    select 1
+    from group_members gm1
+    join group_members gm2 on gm1.group_id = gm2.group_id
+    where gm1.user_id = auth.uid() and gm2.user_id = profiles.id
+  )
+);
 ```
 
 ### Policies for `groups` Table
@@ -167,64 +215,104 @@ using ( auth.role() = 'authenticated' );
 -- Allow the admin of a group to update it.
 create policy "Admins can update their own group."
 on public.groups for update
-using ( auth.uid() = admin_id );
+using ( auth.uid() = owner_id );
 
 -- Policy for viewing groups was updated for the matching feature.
--- This command must be run to replace the old policy.
 drop policy if exists "Authenticated users can view all groups." on public.groups;
 
 create policy "Users can view active groups."
 on public.groups for select
 using ( is_active = true );
+
+-- (New) Allow users to view groups they are a member of.
+create policy "Users can view groups they are a member of."
+on public.groups for select
+using ( is_member_of_group(auth.uid(), id) );
 ```
 
 ### Policies for `swipes` Table
 
 ```sql
--- Allow users to insert a swipe for their own group
-create policy "Users can insert swipes for their own group."
+-- Allow users to insert a swipe for their active group
+create policy "Users can insert swipes for their active group."
 on public.swipes for insert
 with check (
-  swiper_group_id in (
-    select group_id from public.profiles where id = auth.uid()
-  )
+  swiper_group_id = (select active_group_id from public.profiles where id = auth.uid())
 );
 
--- Allow users to view swipes involving their own group
-create policy "Users can view swipes involving their own group."
+-- Allow users to view swipes involving their active group
+create policy "Users can view swipes involving their active group."
 on public.swipes for select
 using (
-  swiper_group_id in (
-    select group_id from public.profiles where id = auth.uid()
-  )
+  swiper_group_id = (select active_group_id from public.profiles where id = auth.uid())
   or
-  swiped_group_id in (
-    select group_id from public.profiles where id = auth.uid()
-  )
+  swiped_group_id = (select active_group_id from public.profiles where id = auth.uid())
+);
+
+-- (Updated) The previous policies were combined and corrected to allow inserts.
+drop policy if exists "Users can insert swipes for their active group." on public.swipes;
+drop policy if exists "Users can view swipes involving their active group." on public.swipes;
+
+create policy "Users can insert and view swipes for their active group."
+on public.swipes for all
+using (
+  swiper_group_id = (select active_group_id from public.profiles where id = auth.uid()) or
+  swiped_group_id = (select active_group_id from public.profiles where id = auth.uid())
+)
+with check (
+  swiper_group_id = (select active_group_id from public.profiles where id = auth.uid())
 );
 ```
 
 ### Policies for `matches` Table
 
 ```sql
--- Allow users to create a match if their group is involved.
-create policy "Users can create matches involving their own group."
-on public.matches for insert
-with check (
-  (group_1 in (select group_id from public.profiles where id = auth.uid()))
-  or
-  (group_2 in (select group_id from public.profiles where id = auth.uid()))
-);
-
 -- Allow users to view matches they are a part of.
-create policy "Users can view matches they are a part of."
+create policy "Users can view matches involving their active group."
 on public.matches for select
 using (
-  (group_1 in (select group_id from public.profiles where id = auth.uid()))
+  (group_1 = (select active_group_id from public.profiles where id = auth.uid()))
   or
-  (group_2 in (select group_id from public.profiles where id = auth.uid()))
+  (group_2 = (select active_group_id from public.profiles where id = auth.uid()))
 );
 ```
+
+### Policies for `group_members` and `group_invites`
+
+```sql
+-- Allow users to view members of groups they are also in.
+create policy "Users can view members of their own group."
+on public.group_members for select
+using (
+  group_id in (select group_id from public.group_members where user_id = auth.uid())
+);
+
+-- (Updated) The previous policy was recursive. It has been replaced with a safer version.
+drop policy if exists "Users can view members of their own group." on public.group_members;
+
+create policy "Users can view members of groups they belong to."
+on public.group_members for select
+using ( is_member_of_group(auth.uid(), group_id) );
+
+-- Allow users to leave a group.
+create policy "Users can leave a group."
+on public.group_members for delete
+using ( user_id = auth.uid() );
+
+-- Allow group owners to create invites for their group.
+create policy "Group owners can create invites."
+on public.group_invites for insert
+with check (
+  created_by = auth.uid() and
+  exists (select 1 from public.groups where id = group_id and owner_id = auth.uid())
+);
+
+-- Allow any authenticated user to read valid, non-expired invites.
+create policy "Authenticated users can read valid invites."
+on public.group_invites for select
+using ( auth.role() = 'authenticated' and expires_at > now() );
+```
+
 
 ## 5. Secure Database Functions (RPC)
 
@@ -232,7 +320,7 @@ To handle complex operations that might conflict with Row Level Security policie
 
 ### Create a New Group Function
 
-This function creates a new group and automatically updates the creator's profile to link them to the new group.
+This function creates a new group and automatically adds the creator to the group as the owner. A user can create and belong to multiple groups.
 
 ```sql
 create function create_new_group(group_name text, group_bio text)
@@ -241,18 +329,60 @@ declare
   new_group_id uuid;
 begin
   -- Insert the new group and return its ID
-  insert into public.groups (name, bio, admin_id)
+  insert into public.groups (name, bio, owner_id)
   values (group_name, group_bio, auth.uid())
   returning id into new_group_id;
 
-  -- Update the profile of the user who created it
-  update public.profiles
-  set group_id = new_group_id
-  where id = auth.uid();
+  -- Add the creator to the group_members table as the owner
+  insert into public.group_members (group_id, user_id, role)
+  values (new_group_id, auth.uid(), 'owner');
 
   return new_group_id;
 end;
 $$ language plpgsql security definer;
+```
+
+### Group Invitation and Membership Functions
+
+```sql
+-- Creates a unique, shareable invite code for a group. Can only be called by the group owner.
+create function public.create_group_invite()
+returns text as $$
+-- ... function body
+$$ language plpgsql;
+
+-- Allows a user to join a group using a valid, non-expired invite code.
+create function public.join_group_with_code(invite_code_to_join text)
+returns void as $$
+-- ... function body
+$$ language plpgsql security definer;
+
+-- Allows a user to leave their current group. If the owner leaves, the group is deleted.
+create function public.leave_current_group()
+returns void as $$
+-- ... function body
+$$ language plpgsql;
+
+### Helper and Utility Functions
+
+```sql
+-- Securely checks if a user is a member of a given group without causing recursion.
+create function is_member_of_group(p_user_id UUID, p_group_id UUID)
+returns boolean as $$
+  select exists (
+    select 1
+    from public.group_members
+    where user_id = p_user_id and group_id = p_group_id
+  );
+$$ language sql stable security definer;
+
+-- Sets a user's chosen group to active, and deactivates their other groups.
+create function set_active_group(p_group_id UUID)
+returns void as $$
+-- ... function body
+$$ language plpgsql security definer;
+```
+
 
 ### Create a New Match Function
 
@@ -313,9 +443,9 @@ on public.messages for insert
 with check (
   match_id in (
     select id from public.matches where
-    (group_1 in (select group_id from public.profiles where id = auth.uid()))
+    (group_1 = (select active_group_id from public.profiles where id = auth.uid()))
     or
-    (group_2 in (select group_id from public.profiles where id = auth.uid()))
+    (group_2 = (select active_group_id from public.profiles where id = auth.uid()))
   )
 );
 
@@ -325,9 +455,9 @@ on public.messages for select
 using (
   match_id in (
     select id from public.matches where
-    (group_1 in (select group_id from public.profiles where id = auth.uid()))
+    (group_1 = (select active_group_id from public.profiles where id = auth.uid()))
     or
-    (group_2 in (select group_id from public.profiles where id = auth.uid()))
+    (group_2 = (select active_group_id from public.profiles where id = auth.uid()))
   )
 );
 ```

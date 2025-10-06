@@ -17,19 +17,20 @@ export default function MatchingScreen() {
   const fetchMyGroupIdAndActiveGroups = async () => {
     if (!session?.user) return;
 
-    // First, get the current user's group ID from their profile
+    // First, get the current user's active group ID from their profile
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('group_id')
+      .select('active_group_id')
       .eq('id', session.user.id)
       .single();
 
-    if (profileError || !profileData?.group_id) {
-      Alert.alert('Error', 'Could not find your group. Please try again.');
+    if (profileError || !profileData?.active_group_id) {
+      Alert.alert('No Active Group', 'Please select a group and make it active before you start swiping.');
+      router.back();
       return;
     }
 
-    const userGroupId = profileData.group_id;
+    const userGroupId = profileData.active_group_id;
     setMyGroupId(userGroupId);
 
     // Then, get a list of all group IDs this user's group has already swiped on

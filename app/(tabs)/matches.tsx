@@ -31,34 +31,46 @@ export default function MatchesScreen() {
       return;
     }
 
-    // First, get the current user's group ID
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('group_id')
-      .eq('id', session.user.id)
-      .single();
+    // 1. Get all of the user's groups
+    const { data: userGroupsData, error: userGroupsError } = await supabase
+      .from('group_members')
+      .select('group_id, groups(name)')
+      .eq('user_id', session.user.id);
 
-    if (profileError || !profileData?.group_id) {
+    if (userGroupsError) {
       setLoading(false);
-      return; // User might not have a group yet
+      Alert.alert('Error', 'Could not fetch your groups.');
+      return;
     }
-    const myGroupId = profileData.group_id;
+    if (userGroupsData.length === 0) {
+      setLoading(false);
+      return; // User is not in any groups
+    }
+    
+    const myGroupIds = userGroupsData.map(ug => ug.group_id);
+    const myGroupsMap = new Map(userGroupsData.map(ug => [ug.group_id, ug.groups.name]));
 
-    // Fetch all match details using our new view
+    // 2. Fetch all matches for all of those groups using our view
     const { data, error } = await supabase
       .from('match_details')
       .select('*')
-      .or(`group_1.eq.${myGroupId},group_2.eq.${myGroupId}`);
+      .or(`group_1.in.(${myGroupIds.join(',')}),group_2.in.(${myGroupIds.join(',')})`);
 
     if (error) {
       Alert.alert('Error', 'Failed to fetch matches.');
       console.error(error);
     } else {
-      // Determine the other group's name for each match
-      const formattedMatches = data.map(match => ({
-        ...match,
-        other_group_name: match.group_1 === myGroupId ? match.group_2_name : match.group_1_name,
-      }));
+      // 3. Determine the names for each match
+      const formattedMatches = data.map(match => {
+        const isGroup1Mine = myGroupsMap.has(match.group_1);
+        const myGroupName = isGroup1Mine ? myGroupsMap.get(match.group_1) : myGroupsMap.get(match.group_2);
+        const otherGroupName = isGroup1Mine ? match.group_2_name : match.group_1_name;
+        return {
+          ...match,
+          my_group_name: myGroupName,
+          other_group_name: otherGroupName,
+        };
+      });
       setMatches(formattedMatches);
     }
     
@@ -78,10 +90,14 @@ export default function MatchesScreen() {
           <TouchableOpacity 
             style={styles.matchItem} 
             onPress={() => router.push(`/chat/${item.match_id}`)}>
-            <Text style={styles.matchText}>Chat with {item.other_group_name}</Text>
+            <Text style={styles.matchText}>
+              <Text style={{fontWeight: 'bold'}}>{item.my_group_name}</Text>
+              {' matched with '}
+              <Text style={{fontWeight: 'bold'}}>{item.other_group_name}</Text>
+            </Text>
           </TouchableOpacity>
         )}
-        ListEmptyComponent={<Text>You have no matches yet.</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>You have no matches yet.</Text>}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -105,5 +121,11 @@ const styles = StyleSheet.create({
   },
   matchText: {
     fontSize: 18,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 40,
+    fontSize: 16,
+    color: '#666',
   },
 });
