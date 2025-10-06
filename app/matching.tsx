@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Button, Alert } from 'react-native';
+import { View, Text, StyleSheet, Button, Alert, Image } from 'react-native';
 import { useAuth } from '../providers/SessionProvider';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
@@ -51,7 +51,7 @@ export default function MatchingScreen() {
     // and any groups they have already swiped on.
     let query = supabase
       .from('groups')
-      .select('*')
+      .select('*, group_photos(photo_url)')
       .eq('is_active', true)
       .not('id', 'eq', userGroupId); // Exclude my own group
 
@@ -172,6 +172,13 @@ export default function MatchingScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.card}>
+        {currentGroup.group_photos && currentGroup.group_photos.length > 0 ? (
+          <Image source={{ uri: currentGroup.group_photos[0].photo_url }} style={styles.photo} />
+        ) : (
+          <View style={styles.photoPlaceholder}>
+            <Text>No Photo</Text>
+          </View>
+        )}
         <Text style={styles.groupName}>{currentGroup.name}</Text>
         <Text>{currentGroup.bio}</Text>
       </View>
@@ -200,6 +207,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 20,
     backgroundColor: 'white',
+  },
+  photo: {
+    width: '100%',
+    height: '70%',
+    borderRadius: 10,
+    marginBottom: 15,
+  },
+  photoPlaceholder: {
+    width: '100%',
+    height: '70%',
+    borderRadius: 10,
+    backgroundColor: '#e0e0e0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
   },
   title: {
     fontSize: 24,

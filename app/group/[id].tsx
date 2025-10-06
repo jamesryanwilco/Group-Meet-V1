@@ -1,9 +1,10 @@
-import { View, Text, StyleSheet, Button, Alert, FlatList } from 'react-native';
+import { View, Text, StyleSheet, Button, Alert, FlatList, Image, TouchableOpacity } from 'react-native';
 import { useAuth } from '../../providers/SessionProvider';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
+import ImageUploader from '../components/ImageUploader';
 
 export default function GroupDetailsScreen() {
   const { id: groupId } = useLocalSearchParams();
@@ -11,12 +12,19 @@ export default function GroupDetailsScreen() {
 
   const [group, setGroup] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
   const [isActive, setIsActive] = useState(false);
 
   const fetchGroupDetails = async () => {
-    if (!groupId) return;
+    // Type assertion to ensure groupId is a string for the rest of the function
+    if (typeof groupId !== 'string') {
+      Alert.alert('Error', 'Invalid Group ID.');
+      router.back();
+      return;
+    }
+
     setLoading(true);
 
     // Fetch group details
@@ -44,11 +52,67 @@ export default function GroupDetailsScreen() {
     if (membersError) {
       Alert.alert('Error', 'Failed to fetch group members.');
     } else {
-      // Filter out any members where the profile might be null
       setMembers(membersData.filter((m) => m.profiles));
     }
+    
+    // Fetch photos
+    const { data: photosData, error: photosError } = await supabase
+      .from('group_photos')
+      .select('id, photo_url')
+      .eq('group_id', groupId);
+
+    if (photosError) {
+      Alert.alert('Error', 'Failed to fetch group photos.');
+    } else {
+      setPhotos(photosData);
+    }
+
     setLoading(false);
   };
+
+  const deletePhoto = async (photoUrl: string) => {
+    // Extract the file path from the full URL
+    const filePath = photoUrl.split('/group-photos/').pop();
+    if (!filePath) {
+      Alert.alert('Error', 'Could not determine the file path to delete.');
+      return;
+    }
+
+    Alert.alert('Confirm Delete', 'Are you sure you want to delete this photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // 1. Delete the file from Storage
+            const { error: storageError } = await supabase.storage
+              .from('group-photos')
+              .remove([filePath]);
+
+            if (storageError) throw storageError;
+
+            // 2. Delete the record from the database
+            const { error: dbError } = await supabase
+              .from('group_photos')
+              .delete()
+              .eq('photo_url', photoUrl);
+
+            if (dbError) throw dbError;
+
+            // 3. Refresh the photo list
+            setPhotos(photos.filter(p => p.photo_url !== photoUrl));
+            Alert.alert('Success', 'Photo deleted.');
+
+          } catch (error: any) {
+            Alert.alert('Error', 'Failed to delete photo.');
+            console.error(error);
+          }
+        },
+      },
+    ]);
+  };
+
 
   useEffect(() => {
     fetchGroupDetails();
@@ -101,14 +165,36 @@ export default function GroupDetailsScreen() {
   }
 
   const isOwner = session?.user.id === group.owner_id;
+  const isMember = members.some(m => m.profiles.id === session?.user.id);
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{group.name}</Text>
       <Text style={styles.bio}>{group.bio}</Text>
 
+      <View>
+        <Text style={styles.sectionTitle}>Photos</Text>
+        <FlatList
+          horizontal
+          data={photos}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View>
+              <Image source={{ uri: item.photo_url }} style={styles.photo} />
+              {isMember && (
+                <TouchableOpacity style={styles.deleteButton} onPress={() => deletePhoto(item.photo_url)}>
+                  <Text style={styles.deleteButtonText}>X</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+          ListEmptyComponent={<Text style={styles.emptyText}>No photos yet.</Text>}
+        />
+        {isMember && <ImageUploader groupId={groupId as string} onUpload={fetchGroupDetails} />}
+      </View>
+
       <View style={styles.membersContainer}>
-        <Text style={styles.membersTitle}>Members</Text>
+        <Text style={styles.sectionTitle}>Members</Text>
         <FlatList
           data={members}
           keyExtractor={(item) => item.profiles.id}
@@ -159,6 +245,37 @@ const styles = StyleSheet.create({
         color: '#666',
         textAlign: 'center',
         marginBottom: 20,
+    },
+    sectionTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 10,
+    },
+    photo: {
+        width: 100,
+        height: 100,
+        borderRadius: 8,
+        marginRight: 10,
+    },
+    deleteButton: {
+        position: 'absolute',
+        top: 5,
+        right: 15,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderRadius: 15,
+        width: 30,
+        height: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    deleteButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    emptyText: {
+        color: '#666',
+        fontStyle: 'italic',
     },
     membersContainer: {
         marginVertical: 20,

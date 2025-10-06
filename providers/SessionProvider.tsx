@@ -7,12 +7,9 @@ const SessionContext = React.createContext<{ session: any; loading: boolean } | 
 
 export function useAuth() {
   const value = React.useContext(SessionContext);
-  if (process.env.NODE_ENV !== 'production') {
-    if (!value) {
-      throw new Error('useAuth must be wrapped in a <SessionProvider />');
-    }
+  if (!value) {
+    throw new Error('useAuth must be wrapped in a <SessionProvider />');
   }
-
   return value;
 }
 

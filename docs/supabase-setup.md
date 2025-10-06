@@ -95,6 +95,22 @@ This table stores unique, expiring invitation codes for groups.
 | `created_at`  | `timestamptz` | `now()`            |                            |
 | `expires_at`  | `timestamptz` | `now() + 24h`      |                            |
 
+### `group_photos` Table
+
+This table stores references to photos uploaded to Supabase Storage for each group.
+
+-   **Table Name:** `group_photos`
+-   **Enable Row Level Security (RLS):** Yes
+
+**Columns:**
+
+| Name         | Type          | Default Value       | Notes                      |
+| :----------- | :------------ | :------------------ | :------------------------- |
+| `id`         | `uuid`        | `gen_random_uuid()` | Primary Key                |
+| `group_id`   | `uuid`        |                     | FK to `groups.id`          |
+| `photo_url`  | `text`        |                     | Public URL from Storage    |
+| `created_at` | `timestamptz` | `now()`             |                            |
+
 
 ### `swipes` Table
 
@@ -184,18 +200,17 @@ create policy "Users can update their own profile."
 on public.profiles for update
 using ( auth.uid() = id );
 
--- (Updated) Allow users to view the profiles of fellow group members.
-drop policy if exists "Users can view their own profile." on public.profiles;
-create policy "Users can view profiles of self and fellow group members."
+-- (Updated) Final recursion-safe policy for viewing profiles.
+drop policy if exists "Users can view profiles of self and fellow group members." on public.profiles;
+drop policy if exists "Users can view profiles of fellow group members." on public.profiles;
+drop policy if exists "Users can view profiles of self, group members, and matched members." on public.profiles;
+
+create policy "Users can view profiles of self, group members, and matched members."
 on public.profiles for select
 using (
-  id = auth.uid() or
-  exists (
-    select 1
-    from group_members gm1
-    join group_members gm2 on gm1.group_id = gm2.group_id
-    where gm1.user_id = auth.uid() and gm2.user_id = profiles.id
-  )
+  id = auth.uid() OR
+  is_member_of_group(auth.uid(), (SELECT group_id FROM public.group_members WHERE user_id = profiles.id LIMIT 1)) OR
+  do_users_share_a_match(auth.uid(), profiles.id)
 );
 ```
 
@@ -313,10 +328,47 @@ on public.group_invites for select
 using ( auth.role() = 'authenticated' and expires_at > now() );
 ```
 
+### Policies for `group_photos`
+
+```sql
+-- Allow anyone to view group photos.
+create policy "Anyone can view group photos."
+on public.group_photos for select
+using ( true );
+
+-- (Updated) Allow any group member to manage photos.
+drop policy if exists "Group owners can insert photos." on public.group_photos;
+drop policy if exists "Group owners can delete photos." on public.group_photos;
+
+create policy "Group members can insert photos."
+on public.group_photos for insert
+with check ( is_member_of_group(auth.uid(), group_id) );
+
+create policy "Group members can delete photos."
+on public.group_photos for delete
+using ( is_member_of_group(auth.uid(), group_id) );
+```
 
 ## 5. Secure Database Functions (RPC)
 
 To handle complex operations that might conflict with Row Level Security policies (like creating a group and assigning the creator as an admin simultaneously), we use `security definer` functions.
+
+### Storage Setup (`group-photos`)
+
+1.  **Create a Public Bucket:**
+    *   Navigate to the **Storage** section in the Supabase dashboard.
+    *   Create a new bucket named `group-photos`.
+    *   Ensure the "Public bucket" toggle is **on**.
+2.  **Set Up Policies:**
+    *   Click on the new bucket's policies and create a new policy from scratch.
+    *   Name it "Group members can manage photos".
+    *   Check the boxes for `insert`, `update`, and `delete`.
+    *   Use the following SQL definition:
+    ```sql
+    (bucket_id = 'group-photos' AND
+      is_member_of_group(auth.uid(), (storage.foldername(name))[1]::uuid)
+    )
+    ```
 
 ### Create a New Group Function
 
@@ -379,6 +431,12 @@ $$ language sql stable security definer;
 -- Sets a user's chosen group to active, and deactivates their other groups.
 create function set_active_group(p_group_id UUID)
 returns void as $$
+-- ... function body
+$$ language plpgsql security definer;
+
+-- Securely checks if two users share a match, preventing recursion.
+create function do_users_share_a_match(user_a_id UUID, user_b_id UUID)
+returns boolean as $$
 -- ... function body
 $$ language plpgsql security definer;
 ```

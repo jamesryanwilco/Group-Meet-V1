@@ -1,4 +1,4 @@
-import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -9,12 +9,16 @@ export default function ChatScreen() {
   const { session } = useAuth();
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
+  const messagesPerPage = 20;
 
   useEffect(() => {
     if (!matchId) return;
 
-    // Fetch initial messages
-    fetchMessages();
+    // Fetch initial messages (page 0)
+    fetchMessages(0);
 
     // Subscribe to new messages in the channel
     const channel = supabase
@@ -22,8 +26,38 @@ export default function ChatScreen() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` },
-        (payload) => {
-          setMessages((currentMessages) => [...currentMessages, payload.new]);
+        async (payload) => {
+          // When a new message arrives, fetch its details including the sender's profile
+          const { data, error } = await supabase
+            .from('messages')
+            .select('*, profiles(username)')
+            .eq('id', payload.new.id)
+            .single();
+
+          if (error) {
+            console.error('Failed to fetch new message details:', error);
+          } else if (data) {
+            // If the message is from someone else, just add it.
+            if (data.sender_id !== session?.user.id) {
+              setMessages((currentMessages) => [data, ...currentMessages]);
+              return;
+            }
+            
+            // If the message is from the current user, replace the optimistic message.
+            setMessages((currentMessages) => {
+              const optimisticIndex = currentMessages.findIndex(
+                (m) => typeof m.id === 'number' // Optimistic messages have a temporary, non-integer ID
+              );
+              if (optimisticIndex !== -1) {
+                const newMessages = [...currentMessages];
+                newMessages[optimisticIndex] = data;
+                return newMessages;
+              } else {
+                // Fallback in case the optimistic message isn't found
+                return [data, ...currentMessages];
+              }
+            });
+          }
         }
       )
       .subscribe();
@@ -34,23 +68,54 @@ export default function ChatScreen() {
     };
   }, [matchId]);
 
-  const fetchMessages = async () => {
-    if (!matchId) return;
+  const fetchMessages = async (page: number) => {
+    if (!matchId || allMessagesLoaded) return;
+    
+    const from = page * messagesPerPage;
+    const to = from + messagesPerPage - 1;
+
     const { data, error } = await supabase
       .from('messages')
-      .select('*')
+      .select('*, profiles(username)')
       .eq('match_id', matchId)
-      .order('sent_at', { ascending: true });
+      .order('sent_at', { ascending: false }) // Fetch newest first
+      .range(from, to);
 
     if (error) {
       Alert.alert('Error', 'Failed to fetch messages.');
     } else {
-      setMessages(data);
+      if (data.length < messagesPerPage) {
+        setAllMessagesLoaded(true);
+      }
+      // Prepend older messages
+      setMessages((currentMessages) => page === 0 ? data : [...currentMessages, ...data]);
     }
+    setLoading(false);
+    setLoadingMore(false);
+  };
+
+  const loadMoreMessages = () => {
+    if (loadingMore || allMessagesLoaded) return;
+    setLoadingMore(true);
+    const currentPage = Math.floor(messages.length / messagesPerPage);
+    fetchMessages(currentPage + 1);
   };
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !session?.user.id) return;
+
+    const optimisticMessage = {
+      id: Math.random(), // Temporary unique ID
+      content: newMessage.trim(),
+      sender_id: session.user.id,
+      sent_at: new Date().toISOString(),
+      profiles: {
+        username: 'You', // This will be quickly replaced by the real-time update
+      },
+    };
+
+    setMessages((currentMessages) => [optimisticMessage, ...currentMessages]);
+    setNewMessage('');
 
     const { error } = await supabase.from('messages').insert({
       match_id: matchId,
@@ -61,10 +126,18 @@ export default function ChatScreen() {
     if (error) {
       Alert.alert('Error', 'Failed to send message.');
       console.error(error);
-    } else {
-      setNewMessage('');
+      // Optional: remove the optimistic message on failure
+      setMessages((currentMessages) => currentMessages.filter(m => m.id !== optimisticMessage.id));
     }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator style={{ margin: 10 }} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -76,6 +149,11 @@ export default function ChatScreen() {
               styles.messageBubble,
               item.sender_id === session?.user.id ? styles.myMessage : styles.otherMessage,
             ]}>
+            {item.sender_id !== session?.user.id && (
+              <Text style={styles.senderName}>
+                {item.profiles?.username || 'Unknown User'}
+              </Text>
+            )}
             <Text style={[
               styles.messageText,
               item.sender_id === session?.user.id ? styles.myMessageText : styles.otherMessageText
@@ -84,6 +162,10 @@ export default function ChatScreen() {
         )}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.messageList}
+        inverted // This is the key for chat UIs
+        onEndReached={loadMoreMessages}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: 10 }} /> : null}
       />
       <View style={styles.inputContainer}>
         <TextInput
@@ -111,6 +193,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 10,
     maxWidth: '80%',
+  },
+  senderName: {
+    fontSize: 12,
+    color: '#888',
+    marginBottom: 4,
   },
   myMessage: {
     backgroundColor: '#007AFF',
