@@ -480,6 +480,21 @@ ALTER TABLE public.messages DROP CONSTRAINT IF EXISTS messages_match_id_fkey, AD
 -- The profiles_active_group_id_fkey is no longer needed as the column has been removed.
 ```
 
+### Get Data for UI Functions
+
+```sql
+-- Gets all the necessary data for the main matches list UI
+create function get_match_list_details()
+returns table (...) as $$
+-- ... function body
+$$ language plpgsql security definer;
+
+-- Gets a filtered list of groups for the swiping screen
+create function get_groups_for_swiping(p_swiping_group_id UUID)
+returns table (...) as $$
+-- ... function body
+$$ language plpgsql security definer;
+```
 
 ### Create a New Match Function
 

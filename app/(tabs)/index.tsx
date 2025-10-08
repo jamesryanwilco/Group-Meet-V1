@@ -1,10 +1,22 @@
-import { View, Text, StyleSheet, Button, FlatList, TouchableOpacity, Alert, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  Image,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
 import { useAuth } from '../../providers/SessionProvider';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import React from 'react';
+import { theme } from '../../lib/theme';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function HomeScreen() {
   const { session } = useAuth();
@@ -17,7 +29,7 @@ export default function HomeScreen() {
 
     const { data, error } = await supabase
       .from('group_members')
-      .select('groups(id, name, photo_url)')
+      .select('groups(id, name, photo_url, bio)')
       .eq('user_id', session.user.id);
 
     if (error) {
@@ -29,8 +41,6 @@ export default function HomeScreen() {
     setLoading(false);
   };
 
-  // useFocusEffect is like useEffect, but it re-runs when the screen comes into focus.
-  // This ensures the group list is fresh after creating or joining a new one.
   useFocusEffect(
     React.useCallback(() => {
       fetchUserGroups();
@@ -39,47 +49,57 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Loading your groups...</Text>
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>My Groups</Text>
-
       <FlatList
         data={groups}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.groupItem}
-            onPress={() => router.push(`/group/${item.id}`)}>
+          <TouchableOpacity style={styles.groupItem} onPress={() => router.push(`/group/${item.id}`)}>
             <Image
-              source={item.photo_url ? { uri: item.photo_url } : require('../../assets/placeholder-avatar.png')}
+              source={
+                item.photo_url
+                  ? { uri: item.photo_url }
+                  : require('../../assets/placeholder-avatar.png')
+              }
               style={styles.groupPhoto}
             />
-            <Text style={styles.groupName}>{item.name}</Text>
+            <View style={styles.groupTextContainer}>
+              <Text style={styles.groupName}>{item.name}</Text>
+              <Text style={styles.groupBio} numberOfLines={1}>
+                {item.bio || 'No bio available.'}
+              </Text>
+            </View>
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>
-            You're not in any groups yet. Create or join one to get started!
-          </Text>
+          <View style={styles.emptyContainer}>
+            <Ionicons name="people-outline" size={60} color={theme.colors.placeholder} />
+            <Text style={styles.emptyText}>You're not in any groups yet.</Text>
+            <Text style={styles.emptySubText}>Create or join one to get started!</Text>
+          </View>
         }
+        contentContainerStyle={{ flexGrow: 1 }}
       />
 
-      {session?.user?.email && (
-        <Text style={styles.emailText}>
-          Signed in as: {session.user.email}
-        </Text>
-      )}
-
       <View style={styles.buttonContainer}>
-        <Button title="Create a New Group" onPress={() => router.push('/create-group')} />
-        <View style={{ marginVertical: 8 }} />
-        <Button title="Join a Group" onPress={() => router.push('/join-group')} />
+        <Pressable style={styles.button} onPress={() => router.push('/create-group')}>
+          <Ionicons name="add-circle-outline" size={20} color={theme.colors.text} />
+          <Text style={styles.buttonText}>Create a New Group</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.button, styles.secondaryButton]}
+          onPress={() => router.push('/join-group')}
+        >
+          <Ionicons name="enter-outline" size={20} color={theme.colors.primary} />
+          <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Join a Group</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -88,48 +108,86 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    paddingTop: 50, // Add padding to avoid notch
+    padding: theme.spacing.m,
+    backgroundColor: theme.colors.background,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
+  // Group List Item Styles
   groupItem: {
-    backgroundColor: '#f0f0f0',
-    padding: 20,
-    borderRadius: 10,
-    marginBottom: 10,
+    backgroundColor: theme.colors.card,
+    padding: theme.spacing.m,
+    borderRadius: theme.radii.m,
+    marginBottom: theme.spacing.m,
     flexDirection: 'row',
     alignItems: 'center',
+    ...theme.shadows.card,
   },
   groupPhoto: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 15,
-    backgroundColor: '#e0e0e0',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: theme.spacing.m,
+    backgroundColor: theme.colors.border,
+  },
+  groupTextContainer: {
+    flex: 1,
   },
   groupName: {
-    fontSize: 18,
-    fontWeight: '500',
+    fontSize: theme.typography.fontSizes.m,
+    fontFamily: theme.typography.fonts.medium,
+    color: theme.colors.text,
+  },
+  groupBio: {
+    fontSize: theme.typography.fontSizes.s,
+    fontFamily: theme.typography.fonts.body,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.xs,
+  },
+  // Empty State Styles
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.l,
   },
   emptyText: {
     textAlign: 'center',
-    marginTop: 40,
-    fontSize: 16,
-    color: '#666',
+    marginTop: theme.spacing.m,
+    fontSize: theme.typography.fontSizes.l,
+    fontFamily: theme.typography.fonts.medium,
+    color: theme.colors.text,
   },
-  buttonContainer: {
-    paddingVertical: 20,
-  },
-  emailText: {
+  emptySubText: {
     textAlign: 'center',
-    color: '#888',
-    marginBottom: 20,
-    fontSize: 12,
+    marginTop: theme.spacing.s,
+    fontSize: theme.typography.fontSizes.m,
+    fontFamily: theme.typography.fonts.body,
+    color: theme.colors.textSecondary,
+  },
+  // Action Button Styles
+  buttonContainer: {
+    paddingVertical: theme.spacing.m,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.m,
+  },
+  button: {
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.m,
+    borderRadius: theme.radii.m,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.s,
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  buttonText: {
+    color: theme.colors.text,
+    fontFamily: theme.typography.fonts.medium,
+    fontSize: theme.typography.fontSizes.m,
+    marginLeft: theme.spacing.s,
   },
 });

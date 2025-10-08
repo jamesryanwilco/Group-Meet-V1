@@ -26,8 +26,16 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-font"
     ],
-    "scheme": "group-meet-v1-1"
+    "scheme": "group-meet-v1-1",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "45a44aee-32e2-4db4-aeb9-e490782f0f7b"
+      }
+    },
+    "owner": "jamesryanwilco"
   }
 }

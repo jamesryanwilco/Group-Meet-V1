@@ -1,9 +1,19 @@
-import { View, Text, TextInput, Button, Alert, StyleSheet, Image, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  Alert,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import AvatarUploader from '../components/AvatarUploader';
 import { useAuth } from '../../providers/SessionProvider';
+import { theme } from '../../lib/theme';
 
 export default function EditProfileScreen() {
   const { session } = useAuth();
@@ -13,14 +23,14 @@ export default function EditProfileScreen() {
 
   useEffect(() => {
     if (!session?.user) return;
-    
+
     const fetchProfile = async () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('username, avatar_url')
         .eq('id', session.user.id)
         .single();
-      
+
       if (error) {
         Alert.alert('Error', 'Failed to fetch profile.');
       } else {
@@ -53,15 +63,28 @@ export default function EditProfileScreen() {
   };
 
   if (loading) {
-    return <View style={styles.container}><Text>Loading...</Text></View>;
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
   }
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Edit Profile</Text>
-
-      <Image source={{ uri: avatarUrl || 'https://via.placeholder.com/150' }} style={styles.avatar} />
-      <AvatarUploader onUpload={(url) => setAvatarUrl(url)} />
+      <View style={styles.avatarContainer}>
+        <AvatarUploader
+          currentAvatarUrl={avatarUrl}
+          onUpload={(url) => {
+            setAvatarUrl(url);
+            // Immediately update the profile with the new avatar
+            supabase.rpc('update_user_profile', {
+              p_username: username.trim(),
+              p_avatar_url: url,
+            });
+          }}
+        />
+      </View>
 
       <Text style={styles.label}>Username</Text>
       <TextInput
@@ -69,9 +92,12 @@ export default function EditProfileScreen() {
         value={username}
         onChangeText={setUsername}
         placeholder="Username"
+        placeholderTextColor={theme.colors.placeholder}
       />
 
-      <Button title="Save Changes" onPress={handleUpdate} />
+      <Pressable style={styles.button} onPress={handleUpdate}>
+        <Text style={styles.buttonText}>Save Changes</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -79,33 +105,37 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    padding: theme.spacing.m,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  avatar: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    alignSelf: 'center',
-    marginBottom: 10,
-    backgroundColor: '#eee',
+  avatarContainer: {
+    alignItems: 'center',
+    marginVertical: theme.spacing.l,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginTop: 20,
-    marginBottom: 5,
+    fontSize: theme.typography.fontSizes.m,
+    fontFamily: theme.typography.fonts.medium,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.s,
   },
   input: {
+    backgroundColor: theme.colors.card,
+    color: theme.colors.text,
+    padding: theme.spacing.m,
+    borderRadius: theme.radii.m,
+    marginBottom: theme.spacing.l,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    borderColor: theme.colors.border,
+    fontSize: theme.typography.fontSizes.m,
+  },
+  button: {
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.m,
+    borderRadius: theme.radii.m,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: theme.colors.text,
+    fontFamily: theme.typography.fonts.medium,
+    fontSize: theme.typography.fontSizes.m,
   },
 });

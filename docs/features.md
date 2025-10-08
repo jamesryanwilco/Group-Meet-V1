@@ -22,11 +22,9 @@ This document provides a high-level overview of the app's features, broken down 
 
 - **Group Details Screen:** Tapping on a group navigates to its dedicated details screen, which shows:
     - The group's name and bio.
-    - A list of all current members' usernames and avatars.
+    - A list of all current members' usernames and avatars. The group owner is marked with an `(Admin)` tag.
     - A gallery of group photos.
-- **Photo Management:** Any member of a group can upload new photos or delete existing photos.
-    - Photos are stored securely in Supabase Storage.
-    - The UI supports picking images from the user's device, compressing them, and uploading.
+- **Photo Management:** All photo management (uploading, deleting, and setting the profile picture) is handled on the "Edit Group" screen.
 - **"Active" Group Management:** From the details screen, any member can toggle their group's active status.
     - **Go Active:** Makes the group visible to others for swiping for 4 hours.
     - **Go Inactive:** Manually deactivates the group before the timer expires.
@@ -56,7 +54,7 @@ This document provides a high-level overview of the app's features, broken down 
 - **Sender Information:** Each message displays the username and avatar of the sender, allowing for clear communication in a group context.
 - **Performance:** The chat history uses pagination ("infinite scroll"), ensuring that chat rooms with long histories load instantly.
 - **Optimistic UI:** When a user sends a message, it appears on the screen immediately, providing a fast and responsive user experience.
-- **Match History:** The "Matches" tab displays a complete history of all matches across all of the user's groups, providing a single entry point to all their conversations.
+- **Match History:** The "Matches" tab displays a complete history of all matches across all of the user's groups. The UI shows the profile pictures of both groups involved in the match.
 
 ## 7. Backend & Security
 

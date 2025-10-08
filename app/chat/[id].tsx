@@ -1,12 +1,27 @@
-import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  Image,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../providers/SessionProvider';
+import { theme } from '../../lib/theme';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ChatScreen() {
   const { id: matchId } = useLocalSearchParams();
   const { session } = useAuth();
+  const navigation = useNavigation();
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -14,20 +29,44 @@ export default function ChatScreen() {
   const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
   const messagesPerPage = 20;
 
+  useLayoutEffect(() => {
+    if (!matchId || typeof matchId !== 'string') return;
+
+    const fetchMatchDetails = async () => {
+      const { data: userGroupsData } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('user_id', session.user.id);
+
+      if (!userGroupsData) return;
+      const myGroupIds = userGroupsData.map((ug) => ug.group_id);
+
+      const { data, error } = await supabase
+        .from('match_details')
+        .select('*')
+        .eq('match_id', matchId)
+        .single();
+
+      if (data) {
+        const otherGroupName = myGroupIds.includes(data.group_1)
+          ? data.group_2_name
+          : data.group_1_name;
+        navigation.setOptions({ title: `Chat with ${otherGroupName}` });
+      }
+    };
+
+    fetchMatchDetails();
+  }, [matchId, navigation]);
+
   useEffect(() => {
     if (!matchId) return;
-
-    // Fetch initial messages (page 0)
     fetchMessages(0);
-
-    // Subscribe to new messages in the channel
     const channel = supabase
       .channel(`chat:${matchId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` },
         async (payload) => {
-          // When a new message arrives, fetch its details including the sender's profile
           const { data, error } = await supabase
             .from('messages')
             .select('*, profiles(username, avatar_url)')
@@ -37,23 +76,17 @@ export default function ChatScreen() {
           if (error) {
             console.error('Failed to fetch new message details:', error);
           } else if (data) {
-            // If the message is from someone else, just add it.
             if (data.sender_id !== session?.user.id) {
               setMessages((currentMessages) => [data, ...currentMessages]);
               return;
             }
-            
-            // If the message is from the current user, replace the optimistic message.
             setMessages((currentMessages) => {
-              const optimisticIndex = currentMessages.findIndex(
-                (m) => typeof m.id === 'number' // Optimistic messages have a temporary, non-integer ID
-              );
+              const optimisticIndex = currentMessages.findIndex((m) => typeof m.id === 'number');
               if (optimisticIndex !== -1) {
                 const newMessages = [...currentMessages];
                 newMessages[optimisticIndex] = data;
                 return newMessages;
               } else {
-                // Fallback in case the optimistic message isn't found
                 return [data, ...currentMessages];
               }
             });
@@ -61,8 +94,6 @@ export default function ChatScreen() {
         }
       )
       .subscribe();
-
-    // Cleanup subscription on unmount
     return () => {
       supabase.removeChannel(channel);
     };
@@ -72,7 +103,7 @@ export default function ChatScreen() {
     if (!matchId || allMessagesLoaded) {
       return;
     }
-    
+
     const from = page * messagesPerPage;
     const to = from + messagesPerPage - 1;
 
@@ -80,7 +111,7 @@ export default function ChatScreen() {
       .from('messages')
       .select('*, profiles(username, avatar_url)')
       .eq('match_id', matchId)
-      .order('sent_at', { ascending: false }) // Fetch newest first
+      .order('sent_at', { ascending: false })
       .range(from, to);
 
     if (error) {
@@ -89,8 +120,7 @@ export default function ChatScreen() {
       if (data.length < messagesPerPage) {
         setAllMessagesLoaded(true);
       }
-      // Prepend older messages
-      setMessages((currentMessages) => page === 0 ? data : [...currentMessages, ...data]);
+      setMessages((currentMessages) => (page === 0 ? data : [...currentMessages, ...data]));
     }
     setLoading(false);
     setLoadingMore(false);
@@ -107,12 +137,13 @@ export default function ChatScreen() {
     if (!newMessage.trim() || !session?.user.id) return;
 
     const optimisticMessage = {
-      id: Math.random(), // Temporary unique ID
+      id: Math.random(),
       content: newMessage.trim(),
       sender_id: session.user.id,
       sent_at: new Date().toISOString(),
       profiles: {
-        username: 'You', // This will be quickly replaced by the real-time update
+        username: 'You',
+        avatar_url: null,
       },
     };
 
@@ -128,54 +159,61 @@ export default function ChatScreen() {
     if (error) {
       Alert.alert('Error', 'Failed to send message.');
       console.error(error);
-      // Optional: remove the optimistic message on failure
-      setMessages((currentMessages) => currentMessages.filter(m => m.id !== optimisticMessage.id));
+      setMessages((currentMessages) =>
+        currentMessages.filter((m) => m.id !== optimisticMessage.id)
+      );
     }
   };
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator style={{ margin: 10 }} />
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
       <FlatList
         data={messages}
         renderItem={({ item }) => {
           const isMyMessage = item.sender_id === session?.user.id;
           return (
-            <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+            <View
+              style={[
+                styles.messageContainer,
+                isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer,
+              ]}
+            >
               {!isMyMessage && (
                 <Image
-                  source={item.profiles?.avatar_url ? { uri: item.profiles.avatar_url } : require('../../assets/placeholder-avatar.png')}
+                  source={
+                    item.profiles?.avatar_url
+                      ? { uri: item.profiles.avatar_url }
+                      : require('../../assets/placeholder-avatar.png')
+                  }
                   style={styles.avatar}
                 />
               )}
-              <View
-                style={[
-                  styles.messageBubble,
-                  isMyMessage ? styles.myMessage : styles.otherMessage,
-                ]}>
+              <View style={[styles.messageBubble, isMyMessage ? styles.myMessage : styles.otherMessage]}>
                 {!isMyMessage && (
-                  <Text style={styles.senderName}>
-                    {item.profiles?.username || 'Unknown User'}
-                  </Text>
+                  <Text style={styles.senderName}>{item.profiles?.username || 'Unknown'}</Text>
                 )}
-                <Text style={[
-                  styles.messageText,
-                  isMyMessage ? styles.myMessageText : styles.otherMessageText
-                ]}>{item.content}</Text>
+                <Text style={isMyMessage ? styles.myMessageText : styles.otherMessageText}>
+                  {item.content}
+                </Text>
               </View>
             </View>
           );
         }}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.messageList}
-        inverted // This is the key for chat UIs
+        inverted
         onEndReached={loadMoreMessages}
         onEndReachedThreshold={0.5}
         ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: 10 }} /> : null}
@@ -186,25 +224,33 @@ export default function ChatScreen() {
           value={newMessage}
           onChangeText={setNewMessage}
           placeholder="Type a message..."
+          placeholderTextColor={theme.colors.placeholder}
         />
-        <Button title="Send" onPress={sendMessage} />
+        <Pressable
+          style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
+          onPress={sendMessage}
+          disabled={!newMessage.trim()}
+        >
+          <Ionicons name="send" size={20} color={theme.colors.background} />
+        </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.colors.background,
   },
   messageList: {
-    padding: 10,
+    padding: theme.spacing.m,
   },
+  // Message Styles
   messageContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 10,
+    marginBottom: theme.spacing.m,
   },
   myMessageContainer: {
     justifyContent: 'flex-end',
@@ -216,49 +262,66 @@ const styles = StyleSheet.create({
     width: 35,
     height: 35,
     borderRadius: 17.5,
-    marginRight: 8,
+    marginRight: theme.spacing.s,
   },
   messageBubble: {
-    padding: 12,
+    paddingVertical: theme.spacing.s,
+    paddingHorizontal: theme.spacing.m,
     borderRadius: 20,
     maxWidth: '80%',
   },
   senderName: {
-    fontSize: 12,
-    color: '#888',
-    marginBottom: 4,
+    fontSize: theme.typography.fontSizes.xs,
+    color: theme.colors.link,
+    fontFamily: theme.typography.fonts.medium,
+    marginBottom: theme.spacing.xs,
   },
   myMessage: {
-    backgroundColor: '#007AFF',
-    alignSelf: 'flex-end',
+    backgroundColor: theme.colors.primaryDark,
+    borderBottomRightRadius: 5,
   },
   otherMessage: {
-    backgroundColor: '#E5E5EA',
-    alignSelf: 'flex-start',
-  },
-  messageText: {
-    fontSize: 16,
+    backgroundColor: theme.colors.card,
+    borderBottomLeftRadius: 5,
   },
   myMessageText: {
-    color: 'white',
+    color: theme.colors.text,
+    fontSize: theme.typography.fontSizes.m,
+    fontFamily: theme.typography.fonts.body,
   },
   otherMessageText: {
-    color: 'black',
+    color: theme.colors.text,
+    fontSize: theme.typography.fontSizes.m,
+    fontFamily: theme.typography.fonts.body,
   },
+  // Input Styles
   inputContainer: {
     flexDirection: 'row',
-    padding: 10,
+    padding: theme.spacing.m,
     borderTopWidth: 1,
-    borderTopColor: '#ccc',
-    backgroundColor: 'white',
+    borderTopColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
   },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#ccc',
+    backgroundColor: theme.colors.background,
     borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    marginRight: 10,
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.s,
+    marginRight: theme.spacing.m,
+    color: theme.colors.text,
+    fontSize: theme.typography.fontSizes.m,
+  },
+  sendButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: theme.colors.placeholder,
   },
 });

@@ -1,7 +1,8 @@
-import { View, Text, TextInput, Button, Alert, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Alert, StyleSheet, Pressable } from 'react-native';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link } from 'expo-router';
+import { theme } from '../../lib/theme';
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
@@ -33,10 +34,11 @@ export default function SignUpScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Sign Up</Text>
+      <Text style={styles.title}>Create Account</Text>
       <TextInput
         style={styles.input}
         placeholder="Username"
+        placeholderTextColor={theme.colors.placeholder}
         value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
@@ -44,18 +46,23 @@ export default function SignUpScreen() {
       <TextInput
         style={styles.input}
         placeholder="Email"
+        placeholderTextColor={theme.colors.placeholder}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
+        keyboardType="email-address"
       />
       <TextInput
         style={styles.input}
         placeholder="Password"
+        placeholderTextColor={theme.colors.placeholder}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
       />
-      <Button title="Sign Up" onPress={signUpWithEmail} />
+      <Pressable style={styles.button} onPress={signUpWithEmail}>
+        <Text style={styles.buttonText}>Sign Up</Text>
+      </Pressable>
       <Link href="/sign-in" style={styles.link}>
         Already have an account? Sign In
       </Link>
@@ -67,24 +74,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    padding: 16,
+    padding: theme.spacing.m,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: theme.typography.fontSizes.xl,
+    fontFamily: theme.typography.fonts.heading,
+    color: theme.colors.text,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: theme.spacing.l,
   },
   input: {
+    backgroundColor: theme.colors.card,
+    color: theme.colors.text,
+    padding: theme.spacing.m,
+    borderRadius: theme.radii.m,
+    marginBottom: theme.spacing.m,
     borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 12,
-    marginBottom: 16,
-    borderRadius: 8,
+    borderColor: theme.colors.border,
+  },
+  button: {
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.m,
+    borderRadius: theme.radii.m,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: theme.colors.text,
+    fontFamily: theme.typography.fonts.medium,
+    fontSize: theme.typography.fontSizes.m,
   },
   link: {
-    marginTop: 16,
+    marginTop: theme.spacing.m,
     textAlign: 'center',
-    color: 'blue',
+    color: theme.colors.link,
+    fontFamily: theme.typography.fonts.body,
   },
 });
