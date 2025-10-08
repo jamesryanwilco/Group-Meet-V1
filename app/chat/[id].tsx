@@ -1,4 +1,4 @@
-import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -30,7 +30,7 @@ export default function ChatScreen() {
           // When a new message arrives, fetch its details including the sender's profile
           const { data, error } = await supabase
             .from('messages')
-            .select('*, profiles(username)')
+            .select('*, profiles(username, avatar_url)')
             .eq('id', payload.new.id)
             .single();
 
@@ -78,7 +78,7 @@ export default function ChatScreen() {
 
     const { data, error } = await supabase
       .from('messages')
-      .select('*, profiles(username)')
+      .select('*, profiles(username, avatar_url)')
       .eq('match_id', matchId)
       .order('sent_at', { ascending: false }) // Fetch newest first
       .range(from, to);
@@ -145,23 +145,34 @@ export default function ChatScreen() {
     <View style={styles.container}>
       <FlatList
         data={messages}
-        renderItem={({ item }) => (
-          <View
-            style={[
-              styles.messageBubble,
-              item.sender_id === session?.user.id ? styles.myMessage : styles.otherMessage,
-            ]}>
-            {item.sender_id !== session?.user.id && (
-              <Text style={styles.senderName}>
-                {item.profiles?.username || 'Unknown User'}
-              </Text>
-            )}
-            <Text style={[
-              styles.messageText,
-              item.sender_id === session?.user.id ? styles.myMessageText : styles.otherMessageText
-            ]}>{item.content}</Text>
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const isMyMessage = item.sender_id === session?.user.id;
+          return (
+            <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+              {!isMyMessage && (
+                <Image
+                  source={item.profiles?.avatar_url ? { uri: item.profiles.avatar_url } : require('../../assets/placeholder-avatar.png')}
+                  style={styles.avatar}
+                />
+              )}
+              <View
+                style={[
+                  styles.messageBubble,
+                  isMyMessage ? styles.myMessage : styles.otherMessage,
+                ]}>
+                {!isMyMessage && (
+                  <Text style={styles.senderName}>
+                    {item.profiles?.username || 'Unknown User'}
+                  </Text>
+                )}
+                <Text style={[
+                  styles.messageText,
+                  isMyMessage ? styles.myMessageText : styles.otherMessageText
+                ]}>{item.content}</Text>
+              </View>
+            </View>
+          );
+        }}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.messageList}
         inverted // This is the key for chat UIs
@@ -190,10 +201,26 @@ const styles = StyleSheet.create({
   messageList: {
     padding: 10,
   },
+  messageContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 10,
+  },
+  myMessageContainer: {
+    justifyContent: 'flex-end',
+  },
+  otherMessageContainer: {
+    justifyContent: 'flex-start',
+  },
+  avatar: {
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    marginRight: 8,
+  },
   messageBubble: {
     padding: 12,
     borderRadius: 20,
-    marginBottom: 10,
     maxWidth: '80%',
   },
   senderName: {

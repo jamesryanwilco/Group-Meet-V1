@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Button, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, Button, FlatList, TouchableOpacity, Alert, Image } from 'react-native';
 import { useAuth } from '../../providers/SessionProvider';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -17,7 +17,7 @@ export default function HomeScreen() {
 
     const { data, error } = await supabase
       .from('group_members')
-      .select('groups(*)')
+      .select('groups(id, name, photo_url)')
       .eq('user_id', session.user.id);
 
     if (error) {
@@ -56,6 +56,10 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.groupItem}
             onPress={() => router.push(`/group/${item.id}`)}>
+            <Image
+              source={item.photo_url ? { uri: item.photo_url } : require('../../assets/placeholder-avatar.png')}
+              style={styles.groupPhoto}
+            />
             <Text style={styles.groupName}>{item.name}</Text>
           </TouchableOpacity>
         )}
@@ -99,6 +103,15 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 10,
     marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  groupPhoto: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 15,
+    backgroundColor: '#e0e0e0',
   },
   groupName: {
     fontSize: 18,

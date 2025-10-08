@@ -22,7 +22,7 @@ This document provides a high-level overview of the app's features, broken down 
 
 - **Group Details Screen:** Tapping on a group navigates to its dedicated details screen, which shows:
     - The group's name and bio.
-    - A list of all current members' usernames.
+    - A list of all current members' usernames and avatars.
     - A gallery of group photos.
 - **Photo Management:** Any member of a group can upload new photos or delete existing photos.
     - Photos are stored securely in Supabase Storage.
@@ -33,7 +33,15 @@ This document provides a high-level overview of the app's features, broken down 
 - **Group Editing:** Any member of a group can edit the group's details, including the primary profile photo (by selecting from the gallery), name, and bio.
 - **Default Profile Photo:** The first photo uploaded to a group's gallery is automatically set as its default profile picture.
 
-## 4. Swiping & Matching
+## 4. User Profile & Settings
+
+- **Settings Hub:** A dedicated "Settings" tab provides access to user-specific actions.
+- **Profile Editing:** Users can navigate to an "Edit Profile" screen where they can:
+    - Update their public `username`.
+    - Upload and change their personal profile picture (`avatar_url`).
+- **Sign Out:** Users can sign out of their account from the settings screen.
+
+## 5. Swiping & Matching
 
 - **Matching Queue:** When a group is active, any member can initiate a swiping session for that group from its details screen.
 - **Filtering:** The matching queue automatically filters out:
@@ -42,15 +50,15 @@ This document provides a high-level overview of the app's features, broken down 
 - **Swipe Actions:** Users can swipe "Like" or "Pass" on behalf of the group they are currently swiping for.
 - **Match Creation:** If two groups "Like" each other, a `match` is created in the database, which automatically opens a shared chat room.
 
-## 5. Messaging
+## 6. Messaging
 
 - **Real-time Chat:** The chat screen provides a real-time messaging experience powered by Supabase Realtime subscriptions.
-- **Sender Information:** Each message displays the username of the sender, allowing for clear communication in a group context.
+- **Sender Information:** Each message displays the username and avatar of the sender, allowing for clear communication in a group context.
 - **Performance:** The chat history uses pagination ("infinite scroll"), ensuring that chat rooms with long histories load instantly.
 - **Optimistic UI:** When a user sends a message, it appears on the screen immediately, providing a fast and responsive user experience.
 - **Match History:** The "Matches" tab displays a complete history of all matches across all of the user's groups, providing a single entry point to all their conversations.
 
-## 6. Backend & Security
+## 7. Backend & Security
 
 - **Supabase Backend:** The app is powered by Supabase, which handles the database, authentication, storage, and real-time services.
 - **Row Level Security (RLS):** All database tables are protected by comprehensive RLS policies, ensuring users can only access data they are permitted to see. For example:

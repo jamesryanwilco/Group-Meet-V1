@@ -57,6 +57,11 @@ export default function MatchesScreen() {
             style={styles.matchItem} 
             onPress={() => router.push(`/chat/${item.match_id}`)}>
             <Image
+              source={item.my_group_photo ? { uri: item.my_group_photo } : require('../../assets/placeholder-avatar.png')}
+              style={styles.avatar}
+            />
+            <Text style={styles.arrow}>➔</Text>
+            <Image
               source={item.other_group_photo ? { uri: item.other_group_photo } : require('../../assets/placeholder-avatar.png')}
               style={styles.avatar}
             />
@@ -98,16 +103,21 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
     width: '100%',
   },
+  arrow: {
+    fontSize: 20,
+    marginHorizontal: 10,
+    color: '#ccc',
+  },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 15,
-    borderWidth: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
     borderColor: 'black',
   },
   matchContent: {
     flex: 1,
+    marginLeft: 15,
   },
   matchHeader: {
     flexDirection: 'row',

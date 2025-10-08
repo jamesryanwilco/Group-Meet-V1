@@ -339,8 +339,9 @@ using ( is_member_of_group(auth.uid(), group_id) );
 
 To handle complex operations that might conflict with Row Level Security policies (like creating a group and assigning the creator as an admin simultaneously), we use `security definer` functions.
 
-### Storage Setup (`group-photos`)
+### Storage Setup
 
+#### `group-photos` Bucket
 1.  **Create a Public Bucket:**
     *   Navigate to the **Storage** section in the Supabase dashboard.
     *   Create a new bucket named `group-photos`.
@@ -354,6 +355,18 @@ To handle complex operations that might conflict with Row Level Security policie
     (bucket_id = 'group-photos' AND
       is_member_of_group(auth.uid(), (storage.foldername(name))[1]::uuid)
     )
+    ```
+
+#### `user-profile-photos` Bucket
+1.  **Create a Public Bucket:**
+    *   Create a new bucket named `user-profile-photos`.
+    *   Ensure the "Public bucket" toggle is **on**.
+2.  **Set Up Policies:**
+    *   Create a new policy named "Users can manage their own profile photos".
+    *   Check `select`, `insert`, `update`, and `delete`.
+    *   Use the following SQL definition:
+    ```sql
+    (bucket_id = 'user-profile-photos' AND (storage.foldername(name))[1] = auth.uid()::text)
     ```
 
 ### Create a New Group Function
@@ -415,6 +428,12 @@ $$ language plpgsql security definer;
 
 -- (New) Allows any group member to update their group's details.
 create function public.update_group_details(p_group_id UUID, p_name TEXT, p_bio TEXT, p_photo_url TEXT)
+returns void as $$
+-- ... function body
+$$ language plpgsql security definer;
+
+-- (New) Allows a user to update their own profile.
+create function public.update_user_profile(p_username TEXT, p_avatar_url TEXT)
 returns void as $$
 -- ... function body
 $$ language plpgsql security definer;

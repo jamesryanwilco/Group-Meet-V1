@@ -47,7 +47,7 @@ export default function GroupDetailsScreen() {
     // Fetch members
     const { data: membersData, error: membersError } = await supabase
       .from('group_members')
-      .select('profiles(id, username)')
+      .select('profiles(id, username, avatar_url)')
       .eq('group_id', groupId);
 
     if (membersError) {
@@ -86,50 +86,6 @@ export default function GroupDetailsScreen() {
 
     setLoading(false);
   };
-
-  const deletePhoto = async (photoUrl: string) => {
-    // Extract the file path from the full URL
-    const filePath = photoUrl.split('/group-photos/').pop();
-    if (!filePath) {
-      Alert.alert('Error', 'Could not determine the file path to delete.');
-      return;
-    }
-
-    Alert.alert('Confirm Delete', 'Are you sure you want to delete this photo?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            // 1. Delete the file from Storage
-            const { error: storageError } = await supabase.storage
-              .from('group-photos')
-              .remove([filePath]);
-
-            if (storageError) throw storageError;
-
-            // 2. Delete the record from the database
-            const { error: dbError } = await supabase
-              .from('group_photos')
-              .delete()
-              .eq('photo_url', photoUrl);
-
-            if (dbError) throw dbError;
-
-            // 3. Refresh the photo list
-            setPhotos(photos.filter(p => p.photo_url !== photoUrl));
-            Alert.alert('Success', 'Photo deleted.');
-
-          } catch (error: any) {
-            Alert.alert('Error', 'Failed to delete photo.');
-            console.error(error);
-          }
-        },
-      },
-    ]);
-  };
-
 
   useEffect(() => {
     fetchGroupDetails();
@@ -227,35 +183,9 @@ export default function GroupDetailsScreen() {
 
   return (
     <View style={styles.container}>
+      <Image source={{ uri: group.photo_url || 'https://via.placeholder.com/150' }} style={styles.profilePhoto} />
       <Text style={styles.title}>{group.name}</Text>
       <Text style={styles.bio}>{group.bio}</Text>
-
-      {isMember && (
-        <View style={styles.editButtonContainer}>
-          <Button title="Edit Group" onPress={() => router.push(`/group/edit/${groupId}`)} />
-        </View>
-      )}
-
-      <View>
-        <Text style={styles.sectionTitle}>Photos</Text>
-        <FlatList
-          horizontal
-          data={photos}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View>
-              <Image source={{ uri: item.photo_url }} style={styles.photo} />
-              {isMember && (
-                <TouchableOpacity style={styles.deleteButton} onPress={() => deletePhoto(item.photo_url)}>
-                  <Text style={styles.deleteButtonText}>X</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-          ListEmptyComponent={<Text style={styles.emptyText}>No photos yet.</Text>}
-        />
-        {isMember && <ImageUploader groupId={groupId as string} groupPhotoUrl={group.photo_url} onUpload={fetchGroupDetails} />}
-      </View>
 
       <View style={styles.membersContainer}>
         <Text style={styles.sectionTitle}>Matches</Text>
@@ -279,10 +209,16 @@ export default function GroupDetailsScreen() {
           data={members}
           keyExtractor={(item) => item.profiles.id}
           renderItem={({ item }) => (
-            <Text style={styles.memberName}>
-              {item.profiles.username}
-              {item.profiles.id === group.owner_id && ' (Admin)'}
-            </Text>
+            <View style={styles.memberItem}>
+              <Image
+                source={item.profiles.avatar_url ? { uri: item.profiles.avatar_url } : require('../../assets/placeholder-avatar.png')}
+                style={styles.memberAvatar}
+              />
+              <Text style={styles.memberName}>
+                {item.profiles.username}
+                {item.profiles.id === group.owner_id && ' (Admin)'}
+              </Text>
+            </View>
           )}
         />
       </View>
@@ -325,6 +261,14 @@ const styles = StyleSheet.create({
         padding: 20,
         paddingTop: 40,
     },
+    profilePhoto: {
+        width: 150,
+        height: 150,
+        borderRadius: 75,
+        alignSelf: 'center',
+        marginBottom: 15,
+        backgroundColor: '#eee',
+    },
     title: {
         fontSize: 28,
         fontWeight: 'bold',
@@ -337,9 +281,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 20,
     },
-    editButtonContainer: {
-      marginVertical: 10,
-    },
     sectionTitle: {
         fontSize: 20,
         fontWeight: 'bold',
@@ -351,25 +292,21 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         marginRight: 10,
     },
-    deleteButton: {
-        position: 'absolute',
-        top: 5,
-        right: 15,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        borderRadius: 15,
-        width: 30,
-        height: 30,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    deleteButtonText: {
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: 16,
-    },
     emptyText: {
         color: '#666',
         fontStyle: 'italic',
+    },
+    memberItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+    },
+    memberAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 15,
+      backgroundColor: '#e0e0e0',
     },
     matchItem: {
       paddingVertical: 5,

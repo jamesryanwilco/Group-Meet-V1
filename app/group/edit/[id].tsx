@@ -2,6 +2,7 @@ import { View, Text, TextInput, Button, Alert, StyleSheet, Image, ScrollView, Fl
 import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import ImageUploader from '../../components/ImageUploader';
 
 export default function EditGroupScreen() {
   const { id: groupId } = useLocalSearchParams();
@@ -11,42 +12,71 @@ export default function EditGroupScreen() {
   const [galleryPhotos, setGalleryPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchGroupAndPhotos = async () => {
     if (typeof groupId !== 'string') return;
+    setLoading(true);
+
+    // Fetch group details
+    const { data: groupData, error: groupError } = await supabase
+      .from('groups')
+      .select('name, bio, photo_url')
+      .eq('id', groupId)
+      .single();
     
-    const fetchGroupAndPhotos = async () => {
-      // Fetch group details
-      const { data: groupData, error: groupError } = await supabase
-        .from('groups')
-        .select('name, bio, photo_url')
-        .eq('id', groupId)
-        .single();
-      
-      if (groupError) {
-        Alert.alert('Error', 'Failed to fetch group details.');
-        setLoading(false);
-        return;
-      }
-      
-      setName(groupData.name);
-      setBio(groupData.bio || '');
-      setPhotoUrl(groupData.photo_url || '');
-
-      // Fetch gallery photos
-      const { data: photosData, error: photosError } = await supabase
-        .from('group_photos')
-        .select('id, photo_url')
-        .eq('group_id', groupId);
-
-      if (photosError) {
-        Alert.alert('Error', 'Failed to fetch group photos.');
-      } else {
-        setGalleryPhotos(photosData);
-      }
+    if (groupError) {
+      Alert.alert('Error', 'Failed to fetch group details.');
       setLoading(false);
-    };
+      return;
+    }
+    
+    setName(groupData.name);
+    setBio(groupData.bio || '');
+    setPhotoUrl(groupData.photo_url || '');
+
+    // Fetch gallery photos
+    const { data: photosData, error: photosError } = await supabase
+      .from('group_photos')
+      .select('id, photo_url')
+      .eq('group_id', groupId);
+
+    if (photosError) {
+      Alert.alert('Error', 'Failed to fetch group photos.');
+    } else {
+      setGalleryPhotos(photosData);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchGroupAndPhotos();
   }, [groupId]);
+
+  const deletePhoto = async (photoUrlToDelete: string) => {
+    const filePath = photoUrlToDelete.split('/group-photos/').pop();
+    if (!filePath) return;
+
+    Alert.alert('Confirm Delete', 'Are you sure you want to delete this photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await supabase.storage.from('group-photos').remove([filePath]);
+            await supabase.from('group_photos').delete().eq('photo_url', photoUrlToDelete);
+            
+            // If the deleted photo was the profile photo, clear it
+            if (photoUrl === photoUrlToDelete) {
+              setPhotoUrl('');
+            }
+            fetchGroupAndPhotos(); // Refresh the gallery
+          } catch (error) {
+            Alert.alert('Error', 'Failed to delete photo.');
+          }
+        },
+      },
+    ]);
+  };
 
   const handleUpdate = async () => {
     if (typeof groupId !== 'string') return;
@@ -66,14 +96,6 @@ export default function EditGroupScreen() {
     }
   };
 
-  // This will be a temporary uploader for the main photo.
-  // We'll upload a photo and just save its URL to state.
-  const uploadGroupPhoto = async () => {
-    // A simplified uploader logic just for the main photo
-    // This is a placeholder for a more robust component if needed
-    Alert.alert("Upload Photo", "This will be the group's main profile picture.");
-  };
-
   if (loading) {
     return <View style={styles.container}><Text>Loading...</Text></View>;
   }
@@ -82,23 +104,32 @@ export default function EditGroupScreen() {
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Edit Group</Text>
 
-      <Text style={styles.label}>Select Profile Photo</Text>
+      <Text style={styles.label}>Profile Photo</Text>
       <Image source={{ uri: photoUrl || 'https://via.placeholder.com/150' }} style={styles.profilePhoto} />
 
+      <Text style={styles.label}>Photo Gallery</Text>
       <FlatList
         horizontal
         data={galleryPhotos}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => setPhotoUrl(item.photo_url)}>
-            <Image
-              source={{ uri: item.photo_url }}
-              style={[styles.galleryPhoto, photoUrl === item.photo_url && styles.selectedPhoto]}
-            />
-          </TouchableOpacity>
+          <View style={styles.photoContainer}>
+            <TouchableOpacity onPress={() => setPhotoUrl(item.photo_url)}>
+              <Image
+                source={{ uri: item.photo_url }}
+                style={[styles.galleryPhoto, photoUrl === item.photo_url && styles.selectedPhoto]}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.deleteButton} onPress={() => deletePhoto(item.photo_url)}>
+              <Text style={styles.deleteButtonText}>X</Text>
+            </TouchableOpacity>
+          </View>
         )}
-        ListEmptyComponent={<Text style={styles.emptyText}>Upload photos on the group details page first.</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>Upload photos to get started.</Text>}
       />
+      
+      <ImageUploader groupId={groupId as string} groupPhotoUrl={photoUrl} onUpload={fetchGroupAndPhotos} />
+
 
       <Text style={styles.label}>Group Name</Text>
       <TextInput
@@ -141,16 +172,35 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     backgroundColor: '#eee',
   },
+  photoContainer: {
+    marginRight: 10,
+  },
   galleryPhoto: {
     width: 80,
     height: 80,
     borderRadius: 8,
-    marginRight: 10,
     borderWidth: 2,
     borderColor: 'transparent',
   },
   selectedPhoto: {
     borderColor: '#007AFF',
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   emptyText: {
     color: '#666',

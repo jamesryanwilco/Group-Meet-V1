@@ -1,7 +1,7 @@
 import { Stack, router, useSegments } from 'expo-router';
 import { SessionProvider, useAuth } from '../providers/SessionProvider';
 import { useEffect } from 'react';
-import { Text } from 'react-native';
+import { Button, Text } from 'react-native';
 
 const AppLayout = () => {
   const { session, loading } = useAuth();
@@ -25,8 +25,18 @@ const AppLayout = () => {
       <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false }} />
       <Stack.Screen name="join-group" options={{ presentation: 'modal', title: 'Join a Group' }} />
       <Stack.Screen name="create-group" options={{ presentation: 'modal', title: 'Create a Group' }} />
-      <Stack.Screen name="group/[id]" options={{ title: 'Group Details' }} />
+      <Stack.Screen
+        name="group/[id]"
+        options={({ route }) => ({
+          title: 'Group Details',
+          headerRight: () => {
+            const { id } = route.params;
+            return <Button title="Edit" onPress={() => router.push(`/group/edit/${id}`)} />;
+          },
+        })}
+      />
       <Stack.Screen name="group/edit/[id]" options={{ presentation: 'modal', title: 'Edit Group' }} />
+      <Stack.Screen name="profile/edit" options={{ presentation: 'modal', title: 'Edit Profile' }} />
     </Stack>
   );
 };
