@@ -15,10 +15,20 @@ import { supabase } from '../../lib/supabase';
 import { router } from 'expo-router';
 import { theme } from '../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { formatTimestamp } from '../../lib/utils';
+
+interface Match {
+  match_id: number;
+  my_group_photo: string | null;
+  other_group_photo: string | null;
+  other_group_name: string;
+  last_message_sent_at: string | null;
+  last_message_content: string | null;
+}
 
 export default function MatchesScreen() {
   const { session } = useAuth();
-  const [matches, setMatches] = useState<any[]>([]);
+  const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -47,7 +57,15 @@ export default function MatchesScreen() {
     if (error) {
       Alert.alert('Error', 'Failed to fetch matches.');
     } else {
-      setMatches(data || []);
+      const sortedMatches = (data || []).sort((a: Match, b: Match) => {
+        // Handle cases where one or both might not have a message yet
+        if (!a.last_message_sent_at) return 1; // a goes to the bottom
+        if (!b.last_message_sent_at) return -1; // b goes to the bottom
+
+        // Sort by the most recent message timestamp
+        return new Date(b.last_message_sent_at).getTime() - new Date(a.last_message_sent_at).getTime();
+      });
+      setMatches(sortedMatches);
     }
 
     setLoading(false);
@@ -94,7 +112,7 @@ export default function MatchesScreen() {
                 <Text style={styles.groupName}>{item.other_group_name}</Text>
                 {item.last_message_sent_at && (
                   <Text style={styles.timestamp}>
-                    {new Date(item.last_message_sent_at).toLocaleDateString()}
+                    {formatTimestamp(item.last_message_sent_at)}
                   </Text>
                 )}
               </View>

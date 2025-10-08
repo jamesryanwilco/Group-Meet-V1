@@ -18,6 +18,7 @@ import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../../lib/theme';
+import { useGroups } from '../../providers/GroupsProvider';
 
 export default function GroupDetailsScreen() {
   const { id: groupId } = useLocalSearchParams();
@@ -29,6 +30,7 @@ export default function GroupDetailsScreen() {
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isActive, setIsActive] = useState(false);
+  const { fetchGroups } = useGroups();
 
   useEffect(() => {
     if (typeof groupId !== 'string') return;
@@ -137,6 +139,7 @@ export default function GroupDetailsScreen() {
             if (error) Alert.alert('Error', 'Failed to delete group.');
             else {
               Alert.alert('Success', 'Group has been deleted.');
+              await fetchGroups();
               router.replace('/(tabs)');
             }
           },
@@ -153,6 +156,7 @@ export default function GroupDetailsScreen() {
             if (error) Alert.alert('Error', 'Failed to leave group.');
             else {
               Alert.alert('Success', 'You have left the group.');
+              await fetchGroups();
               router.replace('/(tabs)');
             }
           },

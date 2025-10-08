@@ -9,6 +9,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { theme } from '../lib/theme';
+import { GroupsProvider } from '../providers/GroupsProvider';
 
 const AppLayout = () => {
   const { session, loading } = useAuth();
@@ -84,7 +85,9 @@ export default function RootLayout() {
 
   return (
     <SessionProvider>
-      <AppLayout />
+      <GroupsProvider>
+        <AppLayout />
+      </GroupsProvider>
     </SessionProvider>
   );
 }

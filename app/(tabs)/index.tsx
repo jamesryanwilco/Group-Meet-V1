@@ -8,46 +8,29 @@ import {
   Image,
   Pressable,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useAuth } from '../../providers/SessionProvider';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import React from 'react';
 import { theme } from '../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useGroups } from '../../providers/GroupsProvider';
 
 export default function HomeScreen() {
-  const { session } = useAuth();
-  const [groups, setGroups] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { groups, loading, fetchGroups } = useGroups();
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchUserGroups = async () => {
-    if (!session?.user) return;
-    setLoading(true);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchGroups();
+    setRefreshing(false);
+  }, [fetchGroups]);
 
-    const { data, error } = await supabase
-      .from('group_members')
-      .select('groups(id, name, photo_url, bio)')
-      .eq('user_id', session.user.id);
-
-    if (error) {
-      Alert.alert('Error', 'Failed to fetch your groups.');
-      console.error(error);
-    } else {
-      setGroups(data.map((item) => item.groups));
-    }
-    setLoading(false);
-  };
-
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchUserGroups();
-    }, [session])
-  );
-
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View style={[styles.container, { justifyContent: 'center' }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -86,6 +69,13 @@ export default function HomeScreen() {
           </View>
         }
         contentContainerStyle={{ flexGrow: 1 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+          />
+        }
       />
 
       <View style={styles.buttonContainer}>

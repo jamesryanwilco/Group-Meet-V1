@@ -1,8 +1,22 @@
-import { View, Text, TextInput, Button, Alert, StyleSheet, Image, ScrollView, FlatList, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  Alert,
+  StyleSheet,
+  Image,
+  ScrollView,
+  FlatList,
+  TouchableOpacity,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import ImageUploader from '../../components/ImageUploader';
+import { theme } from '../../../lib/theme';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function EditGroupScreen() {
   const { id: groupId } = useLocalSearchParams();
@@ -16,24 +30,22 @@ export default function EditGroupScreen() {
     if (typeof groupId !== 'string') return;
     setLoading(true);
 
-    // Fetch group details
     const { data: groupData, error: groupError } = await supabase
       .from('groups')
       .select('name, bio, photo_url')
       .eq('id', groupId)
       .single();
-    
+
     if (groupError) {
       Alert.alert('Error', 'Failed to fetch group details.');
       setLoading(false);
       return;
     }
-    
+
     setName(groupData.name);
     setBio(groupData.bio || '');
     setPhotoUrl(groupData.photo_url || '');
 
-    // Fetch gallery photos
     const { data: photosData, error: photosError } = await supabase
       .from('group_photos')
       .select('id, photo_url')
@@ -64,12 +76,10 @@ export default function EditGroupScreen() {
           try {
             await supabase.storage.from('group-photos').remove([filePath]);
             await supabase.from('group_photos').delete().eq('photo_url', photoUrlToDelete);
-            
-            // If the deleted photo was the profile photo, clear it
             if (photoUrl === photoUrlToDelete) {
               setPhotoUrl('');
             }
-            fetchGroupAndPhotos(); // Refresh the gallery
+            fetchGroupAndPhotos();
           } catch (error) {
             Alert.alert('Error', 'Failed to delete photo.');
           }
@@ -97,58 +107,79 @@ export default function EditGroupScreen() {
   };
 
   if (loading) {
-    return <View style={styles.container}><Text>Loading...</Text></View>;
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
   }
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Edit Group</Text>
+      {/* --- DETAILS CARD --- */}
+      <View style={styles.card}>
+        <Text style={styles.label}>Group Name</Text>
+        <TextInput
+          style={styles.input}
+          value={name}
+          onChangeText={setName}
+          placeholder="Group Name"
+          placeholderTextColor={theme.colors.placeholder}
+        />
 
-      <Text style={styles.label}>Profile Photo</Text>
-      <Image source={{ uri: photoUrl || 'https://via.placeholder.com/150' }} style={styles.profilePhoto} />
+        <Text style={styles.label}>Group Bio</Text>
+        <TextInput
+          style={[styles.input, { height: 100 }]}
+          value={bio}
+          onChangeText={setBio}
+          placeholder="Group Bio"
+          placeholderTextColor={theme.colors.placeholder}
+          multiline
+        />
+      </View>
 
-      <Text style={styles.label}>Photo Gallery</Text>
-      <FlatList
-        horizontal
-        data={galleryPhotos}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.photoContainer}>
-            <TouchableOpacity onPress={() => setPhotoUrl(item.photo_url)}>
-              <Image
-                source={{ uri: item.photo_url }}
-                style={[styles.galleryPhoto, photoUrl === item.photo_url && styles.selectedPhoto]}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.deleteButton} onPress={() => deletePhoto(item.photo_url)}>
-              <Text style={styles.deleteButtonText}>X</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        ListEmptyComponent={<Text style={styles.emptyText}>Upload photos to get started.</Text>}
-      />
-      
-      <ImageUploader groupId={groupId as string} groupPhotoUrl={photoUrl} onUpload={fetchGroupAndPhotos} />
+      {/* --- GALLERY CARD --- */}
+      <View style={styles.card}>
+        <Text style={styles.label}>Group Profile Photo</Text>
+        <Text style={styles.subLabel}>Tap a photo from the gallery to select it as the profile photo.</Text>
+        <Image
+          source={{ uri: photoUrl || 'https://via.placeholder.com/150' }}
+          style={styles.profilePhoto}
+        />
+        <FlatList
+          horizontal
+          data={galleryPhotos}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.photoContainer}>
+              <TouchableOpacity onPress={() => setPhotoUrl(item.photo_url)}>
+                <Image
+                  source={{ uri: item.photo_url }}
+                  style={[
+                    styles.galleryPhoto,
+                    photoUrl === item.photo_url && styles.selectedPhoto,
+                  ]}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deleteButton} onPress={() => deletePhoto(item.photo_url)}>
+                <Ionicons name="close-outline" size={16} color="white" />
+              </TouchableOpacity>
+            </View>
+          )}
+          ListEmptyComponent={<Text style={styles.emptyText}>No photos in gallery.</Text>}
+          style={{ marginBottom: theme.spacing.m }}
+        />
 
+        <ImageUploader
+          groupId={groupId as string}
+          groupPhotoUrl={photoUrl}
+          onUpload={fetchGroupAndPhotos}
+        />
+      </View>
 
-      <Text style={styles.label}>Group Name</Text>
-      <TextInput
-        style={styles.input}
-        value={name}
-        onChangeText={setName}
-        placeholder="Group Name"
-      />
-
-      <Text style={styles.label}>Group Bio</Text>
-      <TextInput
-        style={styles.input}
-        value={bio}
-        onChangeText={setBio}
-        placeholder="Group Bio"
-        multiline
-      />
-
-      <Button title="Save Changes" onPress={handleUpdate} />
+      <Pressable style={styles.button} onPress={handleUpdate}>
+        <Text style={styles.buttonText}>Save Changes</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -156,40 +187,64 @@ export default function EditGroupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    backgroundColor: theme.colors.background,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
+  card: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.l,
+    padding: theme.spacing.m,
+    margin: theme.spacing.m,
+  },
+  label: {
+    fontSize: theme.typography.fontSizes.l,
+    fontFamily: theme.typography.fonts.heading,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.m,
+  },
+  subLabel: {
+    fontSize: theme.typography.fontSizes.s,
+    fontFamily: theme.typography.fonts.body,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.m,
+  },
+  input: {
+    backgroundColor: theme.colors.background,
+    color: theme.colors.text,
+    padding: theme.spacing.m,
+    borderRadius: theme.radii.m,
+    marginBottom: theme.spacing.l,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    fontSize: theme.typography.fontSizes.m,
   },
   profilePhoto: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     alignSelf: 'center',
-    marginBottom: 20,
-    backgroundColor: '#eee',
+    marginBottom: theme.spacing.l,
+    backgroundColor: theme.colors.border,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
   },
   photoContainer: {
-    marginRight: 10,
+    marginRight: theme.spacing.s,
   },
   galleryPhoto: {
     width: 80,
     height: 80,
-    borderRadius: 8,
+    borderRadius: theme.radii.m,
     borderWidth: 2,
     borderColor: 'transparent',
   },
   selectedPhoto: {
-    borderColor: '#007AFF',
+    borderColor: theme.colors.primary,
   },
   deleteButton: {
     position: 'absolute',
-    top: 5,
-    right: 5,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 12,
     width: 24,
     height: 24,
@@ -197,27 +252,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1,
   },
-  deleteButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
   emptyText: {
-    color: '#666',
+    color: theme.colors.textSecondary,
     fontStyle: 'italic',
-    padding: 10,
+    padding: theme.spacing.m,
+    fontFamily: theme.typography.fonts.body,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginTop: 20,
-    marginBottom: 5,
+  button: {
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.m,
+    borderRadius: theme.radii.m,
+    alignItems: 'center',
+    margin: theme.spacing.m,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+  buttonText: {
+    color: theme.colors.text,
+    fontFamily: theme.typography.fonts.medium,
+    fontSize: theme.typography.fontSizes.m,
   },
 });
