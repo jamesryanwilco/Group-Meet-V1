@@ -13,6 +13,7 @@ export default function GroupDetailsScreen() {
   const [group, setGroup] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [photos, setPhotos] = useState<any[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
   const [isActive, setIsActive] = useState(false);
@@ -65,6 +66,22 @@ export default function GroupDetailsScreen() {
       Alert.alert('Error', 'Failed to fetch group photos.');
     } else {
       setPhotos(photosData);
+    }
+
+    // Fetch matches
+    const { data: matchesData, error: matchesError } = await supabase
+      .from('match_details')
+      .select('*')
+      .or(`group_1.eq.${groupId},group_2.eq.${groupId}`);
+
+    if (matchesError) {
+      Alert.alert('Error', 'Failed to fetch group matches.');
+    } else {
+      const formattedMatches = matchesData.map(match => ({
+        ...match,
+        other_group_name: match.group_1 === groupId ? match.group_2_name : match.group_1_name,
+      }));
+      setMatches(formattedMatches);
     }
 
     setLoading(false);
@@ -140,6 +157,18 @@ export default function GroupDetailsScreen() {
     }
   };
 
+  const deactivateGroup = async () => {
+    const { error } = await supabase.rpc('deactivate_group', { p_group_id: groupId });
+
+    if (error) {
+      Alert.alert('Error', 'Failed to deactivate group.');
+      console.error(error);
+    } else {
+      Alert.alert('Success', 'Your group is no longer active.');
+      setIsActive(false);
+    }
+  };
+
   const handleLeaveOrDelete = () => {
     const isOwner = session?.user.id === group.owner_id;
     console.log(`handleLeaveOrDelete called. User is owner: ${isOwner}`);
@@ -201,6 +230,12 @@ export default function GroupDetailsScreen() {
       <Text style={styles.title}>{group.name}</Text>
       <Text style={styles.bio}>{group.bio}</Text>
 
+      {isMember && (
+        <View style={styles.editButtonContainer}>
+          <Button title="Edit Group" onPress={() => router.push(`/group/edit/${groupId}`)} />
+        </View>
+      )}
+
       <View>
         <Text style={styles.sectionTitle}>Photos</Text>
         <FlatList
@@ -219,7 +254,23 @@ export default function GroupDetailsScreen() {
           )}
           ListEmptyComponent={<Text style={styles.emptyText}>No photos yet.</Text>}
         />
-        {isMember && <ImageUploader groupId={groupId as string} onUpload={fetchGroupDetails} />}
+        {isMember && <ImageUploader groupId={groupId as string} groupPhotoUrl={group.photo_url} onUpload={fetchGroupDetails} />}
+      </View>
+
+      <View style={styles.membersContainer}>
+        <Text style={styles.sectionTitle}>Matches</Text>
+        <FlatList
+          data={matches}
+          keyExtractor={(item) => item.match_id}
+          renderItem={({ item }) => (
+            <TouchableOpacity 
+              style={styles.matchItem}
+              onPress={() => router.push(`/chat/${item.match_id}`)}>
+              <Text style={styles.matchText}>- Matched with {item.other_group_name}</Text>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={<Text style={styles.emptyText}>No matches for this group yet.</Text>}
+        />
       </View>
 
       <View style={styles.membersContainer}>
@@ -250,6 +301,8 @@ export default function GroupDetailsScreen() {
         <View style={styles.activeContainer}>
           <Text style={styles.activeText}>Your group is currently active!</Text>
           <Button title="Start Swiping" onPress={() => router.push(`/matching?group_id=${groupId}`)} />
+          <View style={{ marginTop: 10 }} />
+          <Button title="Go Inactive" color="red" onPress={deactivateGroup} />
         </View>
       ) : (
         <Button title="Go Active for 4 Hours" onPress={activateGroup} />
@@ -284,6 +337,9 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 20,
     },
+    editButtonContainer: {
+      marginVertical: 10,
+    },
     sectionTitle: {
         fontSize: 20,
         fontWeight: 'bold',
@@ -314,6 +370,13 @@ const styles = StyleSheet.create({
     emptyText: {
         color: '#666',
         fontStyle: 'italic',
+    },
+    matchItem: {
+      paddingVertical: 5,
+    },
+    matchText: {
+      fontSize: 16,
+      color: '#333',
     },
     membersContainer: {
         marginVertical: 20,

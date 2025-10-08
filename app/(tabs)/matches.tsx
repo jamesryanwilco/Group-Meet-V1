@@ -1,4 +1,4 @@
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, RefreshControl, Image } from 'react-native';
 import { useAuth } from '../../providers/SessionProvider';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -31,47 +31,13 @@ export default function MatchesScreen() {
       return;
     }
 
-    // 1. Get all of the user's groups
-    const { data: userGroupsData, error: userGroupsError } = await supabase
-      .from('group_members')
-      .select('group_id, groups(name)')
-      .eq('user_id', session.user.id);
-
-    if (userGroupsError) {
-      setLoading(false);
-      Alert.alert('Error', 'Could not fetch your groups.');
-      return;
-    }
-    if (userGroupsData.length === 0) {
-      setLoading(false);
-      return; // User is not in any groups
-    }
-    
-    const myGroupIds = userGroupsData.map(ug => ug.group_id);
-    const myGroupsMap = new Map(userGroupsData.map(ug => [ug.group_id, ug.groups.name]));
-
-    // 2. Fetch all matches for all of those groups using our view
-    const { data, error } = await supabase
-      .from('match_details')
-      .select('*')
-      .or(`group_1.in.(${myGroupIds.join(',')}),group_2.in.(${myGroupIds.join(',')})`);
+    // Call our new RPC function to get all the data we need in one go
+    const { data, error } = await supabase.rpc('get_match_list_details');
 
     if (error) {
       Alert.alert('Error', 'Failed to fetch matches.');
-      console.error(error);
     } else {
-      // 3. Determine the names for each match
-      const formattedMatches = data.map(match => {
-        const isGroup1Mine = myGroupsMap.has(match.group_1);
-        const myGroupName = isGroup1Mine ? myGroupsMap.get(match.group_1) : myGroupsMap.get(match.group_2);
-        const otherGroupName = isGroup1Mine ? match.group_2_name : match.group_1_name;
-        return {
-          ...match,
-          my_group_name: myGroupName,
-          other_group_name: otherGroupName,
-        };
-      });
-      setMatches(formattedMatches);
+      setMatches(data || []);
     }
     
     setLoading(false);
@@ -90,11 +56,23 @@ export default function MatchesScreen() {
           <TouchableOpacity 
             style={styles.matchItem} 
             onPress={() => router.push(`/chat/${item.match_id}`)}>
-            <Text style={styles.matchText}>
-              <Text style={{fontWeight: 'bold'}}>{item.my_group_name}</Text>
-              {' matched with '}
-              <Text style={{fontWeight: 'bold'}}>{item.other_group_name}</Text>
-            </Text>
+            <Image
+              source={item.other_group_photo ? { uri: item.other_group_photo } : require('../../assets/placeholder-avatar.png')}
+              style={styles.avatar}
+            />
+            <View style={styles.matchContent}>
+              <View style={styles.matchHeader}>
+                <Text style={styles.groupName}>{item.other_group_name}</Text>
+                {item.last_message_sent_at && (
+                  <Text style={styles.timestamp}>
+                    {new Date(item.last_message_sent_at).toLocaleDateString()}
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.lastMessage} numberOfLines={1}>
+                {item.last_message_content || `Matched with ${item.my_group_name}`}
+              </Text>
+            </View>
           </TouchableOpacity>
         )}
         ListEmptyComponent={<Text style={styles.emptyText}>You have no matches yet.</Text>}
@@ -109,18 +87,44 @@ export default function MatchesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    padding: 10,
   },
   matchItem: {
-    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderBottomColor: '#eee',
     width: '100%',
   },
-  matchText: {
-    fontSize: 18,
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 15,
+    borderWidth: 2,
+    borderColor: 'black',
+  },
+  matchContent: {
+    flex: 1,
+  },
+  matchHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  timestamp: {
+    fontSize: 12,
+    color: '#999',
+  },
+  lastMessage: {
+    fontSize: 14,
+    color: '#666',
   },
   emptyText: {
     textAlign: 'center',

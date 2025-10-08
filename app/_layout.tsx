@@ -25,6 +25,8 @@ const AppLayout = () => {
       <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false }} />
       <Stack.Screen name="join-group" options={{ presentation: 'modal', title: 'Join a Group' }} />
       <Stack.Screen name="create-group" options={{ presentation: 'modal', title: 'Create a Group' }} />
+      <Stack.Screen name="group/[id]" options={{ title: 'Group Details' }} />
+      <Stack.Screen name="group/edit/[id]" options={{ presentation: 'modal', title: 'Edit Group' }} />
     </Stack>
   );
 };

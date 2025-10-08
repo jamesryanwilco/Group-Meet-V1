@@ -27,7 +27,11 @@ This document provides a high-level overview of the app's features, broken down 
 - **Photo Management:** Any member of a group can upload new photos or delete existing photos.
     - Photos are stored securely in Supabase Storage.
     - The UI supports picking images from the user's device, compressing them, and uploading.
-- **"Active" Group:** From the details screen, any member can set their group to "Go Active" for 4 hours. A user can only have one active group at a time. This is the group that will be used for swiping.
+- **"Active" Group Management:** From the details screen, any member can toggle their group's active status.
+    - **Go Active:** Makes the group visible to others for swiping for 4 hours.
+    - **Go Inactive:** Manually deactivates the group before the timer expires.
+- **Group Editing:** Any member of a group can edit the group's details, including the primary profile photo (by selecting from the gallery), name, and bio.
+- **Default Profile Photo:** The first photo uploaded to a group's gallery is automatically set as its default profile picture.
 
 ## 4. Swiping & Matching
 

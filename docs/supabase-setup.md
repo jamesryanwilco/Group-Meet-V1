@@ -200,6 +200,7 @@ on public.profiles for update
 using ( auth.uid() = id );
 
 -- (Updated) Final recursion-safe policy for viewing profiles.
+-- This is the single source of truth for who can see whose profile.
 drop policy if exists "Users can view profiles of self and fellow group members." on public.profiles;
 drop policy if exists "Users can view profiles of fellow group members." on public.profiles;
 drop policy if exists "Users can view profiles of self, group members, and matched members." on public.profiles;
@@ -406,6 +407,18 @@ returns void as $$
 -- ... function body
 $$ language plpgsql security definer;
 
+-- (New) Allows any group member to deactivate their group.
+create function public.deactivate_group(p_group_id UUID)
+returns void as $$
+-- ... function body
+$$ language plpgsql security definer;
+
+-- (New) Allows any group member to update their group's details.
+create function public.update_group_details(p_group_id UUID, p_name TEXT, p_bio TEXT, p_photo_url TEXT)
+returns void as $$
+-- ... function body
+$$ language plpgsql security definer;
+
 
 ### Helper and Utility Functions
 
@@ -445,7 +458,7 @@ ALTER TABLE public.swipes DROP CONSTRAINT IF EXISTS swipes_swiped_group_id_fkey,
 ALTER TABLE public.matches DROP CONSTRAINT IF EXISTS matches_group_1_fkey, ADD CONSTRAINT matches_group_1_fkey FOREIGN KEY (group_1) REFERENCES public.groups(id) ON DELETE CASCADE;
 ALTER TABLE public.matches DROP CONSTRAINT IF EXISTS matches_group_2_fkey, ADD CONSTRAINT matches_group_2_fkey FOREIGN KEY (group_2) REFERENCES public.groups(id) ON DELETE CASCADE;
 ALTER TABLE public.messages DROP CONSTRAINT IF EXISTS messages_match_id_fkey, ADD CONSTRAINT messages_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id) ON DELETE CASCADE;
-ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_active_group_id_fkey, ADD CONSTRAINT profiles_active_group_id_fkey FOREIGN KEY (active_group_id) REFERENCES public.groups(id) ON DELETE SET NULL;
+-- The profiles_active_group_id_fkey is no longer needed as the column has been removed.
 ```
 
 
@@ -520,7 +533,7 @@ with check (
   )
 );
 
--- (Updated) This policy is now more direct to ensure users can always see messages in their matches.
+-- (Updated) This is the final, correct policy for viewing messages.
 drop policy if exists "Members can view messages in their matches." on public.messages;
 
 create policy "Members can view messages in their matches."

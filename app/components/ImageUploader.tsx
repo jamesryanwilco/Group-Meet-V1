@@ -5,10 +5,11 @@ import { useState } from 'react';
 
 interface Props {
   groupId: string;
-  onUpload: () => void; // A callback to refresh the photo list after upload
+  groupPhotoUrl: string | null; // Pass the current group photo URL
+  onUpload: () => void;
 }
 
-export default function ImageUploader({ groupId, onUpload }: Props) {
+export default function ImageUploader({ groupId, groupPhotoUrl, onUpload }: Props) {
   const [uploading, setUploading] = useState(false);
 
   const pickAndUploadImage = async () => {
@@ -70,7 +71,22 @@ export default function ImageUploader({ groupId, onUpload }: Props) {
         throw insertError;
       }
 
-      // 6. Call the onUpload callback to trigger a refresh
+      // 6. If the group doesn't have a profile photo yet, set this one as the default.
+      if (!groupPhotoUrl) {
+        const { error: updateError } = await supabase.rpc('update_group_details', {
+          p_group_id: groupId,
+          p_name: null, // We're only updating the photo, so other fields can be null
+          p_bio: null,
+          p_photo_url: publicUrl,
+        });
+
+        if (updateError) {
+          // This is not a critical error, so we can just log it
+          console.error('Failed to set default profile photo:', updateError);
+        }
+      }
+
+      // 7. Call the onUpload callback to trigger a refresh
       onUpload();
 
     } catch (error: any) {
