@@ -125,6 +125,7 @@ export default function EditGroupScreen() {
           onChangeText={setName}
           placeholder="Group Name"
           placeholderTextColor={theme.colors.placeholder}
+          keyboardAppearance="dark"
         />
 
         <Text style={styles.label}>Group Bio</Text>
@@ -135,6 +136,7 @@ export default function EditGroupScreen() {
           placeholder="Group Bio"
           placeholderTextColor={theme.colors.placeholder}
           multiline
+          keyboardAppearance="dark"
         />
       </View>
 

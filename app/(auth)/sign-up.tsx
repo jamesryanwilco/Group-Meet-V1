@@ -39,26 +39,29 @@ export default function SignUpScreen() {
         style={styles.input}
         placeholder="Username"
         placeholderTextColor={theme.colors.placeholder}
+        keyboardAppearance="dark"
+        autoCapitalize="none"
         value={username}
         onChangeText={setUsername}
-        autoCapitalize="none"
       />
       <TextInput
         style={styles.input}
         placeholder="Email"
         placeholderTextColor={theme.colors.placeholder}
+        keyboardAppearance="dark"
+        autoCapitalize="none"
         value={email}
         onChangeText={setEmail}
-        autoCapitalize="none"
         keyboardType="email-address"
       />
       <TextInput
         style={styles.input}
         placeholder="Password"
         placeholderTextColor={theme.colors.placeholder}
+        keyboardAppearance="dark"
+        secureTextEntry
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
       />
       <Pressable style={styles.button} onPress={signUpWithEmail}>
         <Text style={styles.buttonText}>Sign Up</Text>

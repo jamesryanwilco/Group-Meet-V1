@@ -41,6 +41,7 @@ export default function CreateGroupScreen() {
         placeholderTextColor={theme.colors.placeholder}
         value={groupName}
         onChangeText={setGroupName}
+        keyboardAppearance="dark"
       />
       <Text style={styles.label}>Group Bio (Optional)</Text>
       <TextInput
@@ -49,6 +50,7 @@ export default function CreateGroupScreen() {
         placeholderTextColor={theme.colors.placeholder}
         value={groupBio}
         onChangeText={setGroupBio}
+        keyboardAppearance="dark"
       />
       <Pressable style={styles.button} onPress={createGroup}>
         <Text style={styles.buttonText}>Create Group</Text>

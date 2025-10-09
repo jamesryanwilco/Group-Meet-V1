@@ -20,10 +20,37 @@ import React from 'react';
 import { theme } from '../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useGroups } from '../../providers/GroupsProvider';
+import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
+import { useHeaderAnimation } from '../../providers/HeaderAnimationProvider';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+
+const MemberAvatars = ({ avatars }: { avatars: (string | null)[] }) => {
+  const visibleAvatars = (avatars || []).filter(Boolean).slice(0, 4);
+
+  return (
+    <View style={styles.avatarRow}>
+      {visibleAvatars.map((url, index) => (
+        <Image
+          key={index}
+          source={{ uri: url! }}
+          style={[styles.memberAvatar, { marginLeft: index > 0 ? -15 : 0 }]}
+        />
+      ))}
+    </View>
+  );
+};
 
 export default function HomeScreen() {
   const { groups, loading, fetchGroups } = useGroups();
   const [refreshing, setRefreshing] = useState(false);
+  const { scrollY } = useHeaderAnimation();
+  const insets = useSafeAreaInsets();
+
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -41,29 +68,11 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>My Groups</Text>
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={20} color={theme.colors.placeholder} style={styles.searchIcon} />
-        <TextInput
-          placeholder="Search groups..."
-          placeholderTextColor={theme.colors.placeholder}
-          style={styles.searchInput}
-        />
-      </View>
-      <View style={styles.filterContainer}>
-        <TouchableOpacity style={[styles.filterButton, styles.activeFilter]}>
-          <Text style={[styles.filterButtonText, styles.activeFilterText]}>All</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterButton}>
-          <Text style={styles.filterButtonText}>Favourite</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterButton}>
-          <Text style={styles.filterButtonText}>Unread</Text>
-        </TouchableOpacity>
-      </View>
-      <FlatList
+      <AnimatedFlatList
         data={groups}
         keyExtractor={(item) => item.id}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.groupItem} onPress={() => router.push(`/group/${item.id}`)}>
             <Image
@@ -79,9 +88,38 @@ export default function HomeScreen() {
               <Text style={styles.groupBio} numberOfLines={1}>
                 {item.bio || 'No bio available.'}
               </Text>
+              <View style={styles.membersContainer}>
+                <MemberAvatars avatars={item.member_avatars} />
+                <Text style={styles.memberCount}>{item.member_count} members</Text>
+              </View>
             </View>
           </TouchableOpacity>
         )}
+        ListHeaderComponent={
+          <>
+            <Text style={styles.title}>My Groups</Text>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={20} color={theme.colors.placeholder} style={styles.searchIcon} />
+              <TextInput
+                placeholder="Search groups..."
+                placeholderTextColor={theme.colors.placeholder}
+                style={styles.searchInput}
+                keyboardAppearance="dark"
+              />
+            </View>
+            <View style={styles.filterContainer}>
+              <TouchableOpacity style={[styles.filterButton, styles.activeFilter]}>
+                <Text style={[styles.filterButtonText, styles.activeFilterText]}>All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.filterButton}>
+                <Text style={styles.filterButtonText}>Favourite</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.filterButton}>
+                <Text style={styles.filterButtonText}>Unread</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="people-outline" size={60} color={theme.colors.placeholder} />
@@ -89,7 +127,7 @@ export default function HomeScreen() {
             <Text style={styles.emptySubText}>Create or join one to get started!</Text>
           </View>
         }
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 50, paddingHorizontal: theme.spacing.m }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -105,7 +143,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: theme.spacing.m,
     backgroundColor: theme.colors.background,
   },
   // Group List Item Styles
@@ -119,9 +156,9 @@ const styles = StyleSheet.create({
     ...theme.shadows.card,
   },
   groupPhoto: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
     marginRight: theme.spacing.m,
     backgroundColor: theme.colors.border,
   },
@@ -138,6 +175,29 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fonts.body,
     color: theme.colors.textSecondary,
     marginTop: theme.spacing.xs,
+  },
+  membersContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.s,
+  },
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memberAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.card,
+    backgroundColor: theme.colors.border,
+  },
+  memberCount: {
+    marginLeft: theme.spacing.s,
+    fontSize: theme.typography.fontSizes.xs,
+    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fonts.body,
   },
   // Empty State Styles
   emptyContainer: {
@@ -188,7 +248,7 @@ const styles = StyleSheet.create({
     marginLeft: theme.spacing.s,
   },
   title: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: 'bold',
     marginBottom: 16,
     color: theme.colors.text,

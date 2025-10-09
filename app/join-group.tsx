@@ -39,6 +39,7 @@ export default function JoinGroupScreen() {
         value={inviteCode}
         onChangeText={setInviteCode}
         autoCapitalize="characters"
+        keyboardAppearance="dark"
       />
       <Pressable style={styles.button} onPress={joinGroup}>
         <Text style={styles.buttonText}>Join Group</Text>

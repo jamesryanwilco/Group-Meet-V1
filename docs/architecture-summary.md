@@ -31,6 +31,16 @@ Here’s a breakdown of the key areas:
 
 *   The application uses reusable components for common UI elements like `AvatarUploader.tsx`, `ImageUploader.tsx`, and `ProfileImageUploader.tsx`. This keeps the code organized and consistent. These components likely encapsulate the logic for interacting with Supabase Storage to upload and manage images.
 
+**4. Advanced UI & Animations:**
+
+*   **Scroll-Triggered Header on "My Groups" Screen:**
+    *   **Goal:** To create a modern, premium user experience, the header on the "My Groups" screen (`app/(tabs)/index.tsx`) starts transparent and animates into a solid background as the user scrolls.
+    *   **Implementation:** This effect is achieved using the `react-native-reanimated` library.
+    *   **Shared State:** Because the header is defined in the layout (`app/(tabs)/_layout.tsx`) but the scroll view is in the screen (`index.tsx`), a shared context (`providers/HeaderAnimationProvider.tsx`) is used to communicate the scroll position (`scrollY`) between them.
+    *   **Animation Logic:**
+        *   The `index.tsx` screen uses `useAnimatedScrollHandler` to track the `FlatList`'s scroll position and update the shared `scrollY` value.
+        *   The `_layout.tsx` file uses this `scrollY` value with the `interpolate` function to create animated styles. It independently controls the opacity of the header's background and title, fine-tuning the timing to create a smooth hand-off as the on-screen title scrolls out of view and the header title fades in.
+
 ### Back-End Architecture (Supabase)
 
 The back end is built entirely on Supabase, a platform that provides a suite of tools to build and scale applications without managing server infrastructure.

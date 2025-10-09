@@ -225,6 +225,7 @@ export default function ChatScreen() {
           onChangeText={setNewMessage}
           placeholder="Type a message..."
           placeholderTextColor={theme.colors.placeholder}
+          keyboardAppearance="dark"
         />
         <Pressable
           style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}

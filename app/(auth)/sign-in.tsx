@@ -20,18 +20,19 @@ export default function SignInScreen() {
         style={styles.input}
         placeholder="Email"
         placeholderTextColor={theme.colors.placeholder}
+        keyboardAppearance="dark"
+        autoCapitalize="none"
         value={email}
         onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
       />
       <TextInput
         style={styles.input}
         placeholder="Password"
         placeholderTextColor={theme.colors.placeholder}
+        keyboardAppearance="dark"
+        secureTextEntry
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
       />
       <Pressable style={styles.button} onPress={signInWithEmail}>
         <Text style={styles.buttonText}>Sign In</Text>

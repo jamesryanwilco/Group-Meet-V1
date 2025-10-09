@@ -87,13 +87,16 @@ export default function EditProfileScreen() {
       </View>
 
       <Text style={styles.label}>Username</Text>
-      <TextInput
-        style={styles.input}
-        value={username}
-        onChangeText={setUsername}
-        placeholder="Username"
-        placeholderTextColor={theme.colors.placeholder}
-      />
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          value={username}
+          onChangeText={setUsername}
+          placeholder="Your username"
+          placeholderTextColor={theme.colors.placeholder}
+          keyboardAppearance="dark"
+        />
+      </View>
 
       <Pressable style={styles.button} onPress={handleUpdate}>
         <Text style={styles.buttonText}>Save Changes</Text>

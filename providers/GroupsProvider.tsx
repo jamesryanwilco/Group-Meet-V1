@@ -7,6 +7,8 @@ interface Group {
   name: string;
   photo_url: string;
   bio: string;
+  member_count: number;
+  member_avatars: (string | null)[];
 }
 
 interface GroupsContextType {
@@ -29,17 +31,13 @@ export const GroupsProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     setLoading(true);
-    const { data, error } = await supabase
-      .from('group_members')
-      .select('groups(id, name, photo_url, bio)')
-      .eq('user_id', session.user.id);
+    const { data, error } = await supabase.rpc('get_groups_with_member_details');
 
     if (error) {
       console.error('Failed to fetch groups:', error);
       setGroups([]);
     } else {
-      const fetchedGroups = data?.map((item: any) => item.groups).filter(Boolean) || [];
-      setGroups(fetchedGroups);
+      setGroups(data || []);
     }
     setLoading(false);
   };

@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Image,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useAuth } from '../../providers/SessionProvider';
 import { useEffect, useState, useCallback } from 'react';
@@ -16,7 +17,11 @@ import { router } from 'expo-router';
 import { theme } from '../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { formatTimestamp } from '../../lib/utils';
+import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
+import { useHeaderAnimation } from '../../providers/HeaderAnimationProvider';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 interface Match {
   match_id: number;
   my_group_photo: string | null;
@@ -31,6 +36,12 @@ export default function MatchesScreen() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { scrollY } = useHeaderAnimation();
+  const insets = useSafeAreaInsets();
+
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
 
   useEffect(() => {
     if (session) {
@@ -81,9 +92,11 @@ export default function MatchesScreen() {
 
   return (
     <View style={styles.container}>
-      <FlatList
+      <AnimatedFlatList
         data={matches}
         keyExtractor={(item) => item.match_id.toString()}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.matchItem}
@@ -122,6 +135,28 @@ export default function MatchesScreen() {
             </View>
           </TouchableOpacity>
         )}
+        ListHeaderComponent={
+          <>
+            <Text style={styles.title}>Matches</Text>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={20} color={theme.colors.placeholder} style={styles.searchIcon} />
+              <TextInput
+                placeholder="Search matches..."
+                placeholderTextColor={theme.colors.placeholder}
+                style={styles.searchInput}
+                keyboardAppearance="dark"
+              />
+            </View>
+            <View style={styles.filterContainer}>
+              <TouchableOpacity style={[styles.filterButton, styles.activeFilter]}>
+                <Text style={[styles.filterButtonText, styles.activeFilterText]}>All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.filterButton}>
+                <Text style={styles.filterButtonText}>Unread</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={60} color={theme.colors.placeholder} />
@@ -131,7 +166,7 @@ export default function MatchesScreen() {
             </Text>
           </View>
         }
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 50, paddingHorizontal: theme.spacing.m }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -148,6 +183,50 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+    paddingHorizontal: 0, // Remove padding from container as it's now on the list
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: theme.colors.text,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    color: theme.colors.text,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  filterButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: theme.colors.card,
+    marginRight: 8,
+  },
+  activeFilter: {
+    backgroundColor: theme.colors.primary,
+  },
+  filterButtonText: {
+    color: theme.colors.textSecondary,
+  },
+  activeFilterText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
   },
   // Match Item Styles
   matchItem: {
@@ -157,6 +236,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.card,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
+    marginHorizontal: -theme.spacing.m, // Counteract the padding on the content container
+    paddingHorizontal: theme.spacing.m,
   },
   avatarContainer: {
     flexDirection: 'row',
