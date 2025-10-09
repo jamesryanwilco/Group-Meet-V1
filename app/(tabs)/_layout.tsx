@@ -1,5 +1,5 @@
 import { Tabs, router } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../lib/theme';
@@ -29,9 +29,14 @@ export default function TabsLayout() {
           title: 'My Groups',
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
           headerRight: () => (
-            <Pressable onPress={() => supabase.auth.signOut()} style={{ marginRight: 16 }}>
-              <Ionicons name="log-out-outline" size={24} color={theme.colors.placeholder} />
-            </Pressable>
+            <View style={{ flexDirection: 'row', marginRight: 16, gap: 16 }}>
+              <Pressable onPress={() => router.push('/create-group')}>
+                <Ionicons name="add-circle-outline" size={24} color={theme.colors.primary} />
+              </Pressable>
+              <Pressable onPress={() => router.push('/join-group')}>
+                <Ionicons name="enter-outline" size={24} color={theme.colors.primary} />
+              </Pressable>
+            </View>
           ),
         }}
       />

@@ -9,6 +9,7 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
 } from 'react-native';
 import { useAuth } from '../../providers/SessionProvider';
 import { useEffect, useState, useCallback } from 'react';
@@ -40,6 +41,26 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
+      <Text style={styles.title}>My Groups</Text>
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={20} color={theme.colors.placeholder} style={styles.searchIcon} />
+        <TextInput
+          placeholder="Search groups..."
+          placeholderTextColor={theme.colors.placeholder}
+          style={styles.searchInput}
+        />
+      </View>
+      <View style={styles.filterContainer}>
+        <TouchableOpacity style={[styles.filterButton, styles.activeFilter]}>
+          <Text style={[styles.filterButtonText, styles.activeFilterText]}>All</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.filterButton}>
+          <Text style={styles.filterButtonText}>Favourite</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.filterButton}>
+          <Text style={styles.filterButtonText}>Unread</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         data={groups}
         keyExtractor={(item) => item.id}
@@ -77,20 +98,6 @@ export default function HomeScreen() {
           />
         }
       />
-
-      <View style={styles.buttonContainer}>
-        <Pressable style={styles.button} onPress={() => router.push('/create-group')}>
-          <Ionicons name="add-circle-outline" size={20} color={theme.colors.text} />
-          <Text style={styles.buttonText}>Create a New Group</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.button, styles.secondaryButton]}
-          onPress={() => router.push('/join-group')}
-        >
-          <Ionicons name="enter-outline" size={20} color={theme.colors.primary} />
-          <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Join a Group</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -179,5 +186,48 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fonts.medium,
     fontSize: theme.typography.fontSizes.m,
     marginLeft: theme.spacing.s,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: theme.colors.text,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    color: theme.colors.text,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  filterButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: theme.colors.card,
+    marginRight: 8,
+  },
+  activeFilter: {
+    backgroundColor: theme.colors.primary,
+  },
+  filterButtonText: {
+    color: theme.colors.textSecondary,
+  },
+  activeFilterText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
   },
 });
