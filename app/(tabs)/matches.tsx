@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   TextInput,
+  FlatListProps,
 } from 'react-native';
 import { useAuth } from '../../providers/SessionProvider';
 import { useEffect, useState, useCallback } from 'react';
@@ -21,7 +22,7 @@ import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useHeaderAnimation } from '../../providers/HeaderAnimationProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+const AnimatedFlatList = Animated.createAnimatedComponent<FlatListProps<Match>>(FlatList);
 interface Match {
   match_id: number;
   my_group_photo: string | null;

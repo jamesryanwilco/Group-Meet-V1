@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
+  FlatListProps,
 } from 'react-native';
 import { useAuth } from '../../providers/SessionProvider';
 import { useEffect, useState, useCallback } from 'react';
@@ -19,12 +20,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import React from 'react';
 import { theme } from '../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useGroups } from '../../providers/GroupsProvider';
+import { useGroups, Group } from '../../providers/GroupsProvider';
 import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useHeaderAnimation } from '../../providers/HeaderAnimationProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+const AnimatedFlatList = Animated.createAnimatedComponent<FlatListProps<Group>>(FlatList);
 
 const MemberAvatars = ({ avatars }: { avatars: (string | null)[] }) => {
   const visibleAvatars = (avatars || []).filter(Boolean).slice(0, 4);
