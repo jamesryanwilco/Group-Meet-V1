@@ -24,12 +24,12 @@ These features are essential for a complete and engaging user experience.
 
 These features will significantly boost user engagement and safety once the foundations are solid.
 
-### 1. Push Notifications
-- **Description:** Send native push notifications for key events (new matches, new messages, group invites).
+### 1. Push Notifications (Completed)
+- **Description:** Send native push notifications for new matches and new messages.
 - **Rationale:** The most effective way to re-engage users and keep them informed of important, time-sensitive events.
 - **Implementation:**
-    - Use Expo's Push Notification service.
-    - Create Supabase Edge Functions to securely trigger notifications on database events.
+    - Used Expo's Push Notification service.
+    - Created Supabase Edge Functions (`send-push-notification`, `send-match-notification`) triggered by database changes to securely send notifications.
 
 ### 2. Basic Match Filtering
 - **Description:** Allow users to filter the groups they see in the matching queue based on simple criteria, starting with group size.

@@ -5,8 +5,12 @@ import { theme } from '../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { useEffect } from 'react';
+import { useNotifications } from '../../hooks/useNotifications';
+import { useState } from 'react';
 
 export default function SettingsScreen() {
+  const { registerForPushNotificationsAsync } = useNotifications();
+  const [token, setToken] = useState<string | undefined>();
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
 
@@ -30,6 +34,20 @@ export default function SettingsScreen() {
       <Animated.View style={[styles.testBox, animatedStyle]}>
         <Text style={styles.testBoxText}>Reanimated is working!</Text>
       </Animated.View>
+
+      <Pressable
+        style={styles.menuItem}
+        onPress={async () => {
+          const token = await registerForPushNotificationsAsync();
+          setToken(token);
+        }}
+      >
+        <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
+        <Text style={styles.menuItemText}>Enable Notifications</Text>
+        <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+      </Pressable>
+
+      {token && <Text>Token: {token}</Text>}
 
       <Pressable style={styles.menuItem} onPress={() => router.push('/profile/edit')}>
         <Ionicons name="person-circle-outline" size={24} color={theme.colors.textSecondary} />

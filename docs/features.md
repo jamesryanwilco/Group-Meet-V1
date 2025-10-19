@@ -63,3 +63,10 @@ This document provides a high-level overview of the app's features, broken down 
     - Users can only see the profiles of people they share a group or a match with.
     - Users can only manage photos for groups they are a member of.
 - **Secure Functions:** Complex actions (like creating a group or setting a group to active) are handled by secure PostgreSQL functions on the backend to ensure data integrity and prevent unauthorized actions.
+
+## 8. Push Notifications
+
+- **Opt-In:** Users can choose to enable push notifications from the settings screen.
+- **New Messages:** When a user receives a new message in a match, they will get a push notification with the sender's username and the message content.
+- **New Matches:** When a user's group matches with another group, all members of both groups will receive a notification.
+- **Implementation:** The system is powered by Expo Push Notifications and two Supabase Edge Functions (`send-push-notification` and `send-match-notification`) that are triggered by database changes.

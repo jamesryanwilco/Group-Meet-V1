@@ -1,14 +1,15 @@
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
-import { Alert, View, Button } from 'react-native';
+import { Alert, View, Button, Image, StyleSheet } from 'react-native';
 import { useState } from 'react';
 import { useAuth } from '../../providers/SessionProvider';
 
 interface Props {
   onUpload: (url: string) => void;
+  currentAvatarUrl: string | null;
 }
 
-export default function AvatarUploader({ onUpload }: Props) {
+export default function AvatarUploader({ onUpload, currentAvatarUrl }: Props) {
   const { session } = useAuth();
   const [uploading, setUploading] = useState(false);
 
@@ -62,7 +63,15 @@ export default function AvatarUploader({ onUpload }: Props) {
   };
 
   return (
-    <View>
+    <View style={styles.container}>
+      <Image
+        source={
+          currentAvatarUrl
+            ? { uri: currentAvatarUrl }
+            : require('../../assets/placeholder-avatar.png')
+        }
+        style={styles.avatar}
+      />
       <Button
         title={uploading ? 'Uploading...' : 'Change Avatar'}
         onPress={pickAndUploadImage}
@@ -71,3 +80,17 @@ export default function AvatarUploader({ onUpload }: Props) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#ccc',
+  },
+});
