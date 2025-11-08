@@ -41,6 +41,20 @@ This table stores public user data, linked to the `auth.users` table.
 -   **Reference Table:** `users`
 -   **Reference Column:** `id`
 
+> **Important:** The foreign key from `public.profiles` to `auth.users` must be configured with `ON DELETE CASCADE`. This ensures that when a user is deleted from the `auth.users` table, their corresponding profile is automatically removed.
+>
+> ```sql
+> -- Drop the existing constraint if it exists
+> ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
+>
+> -- Add the constraint with ON DELETE CASCADE
+> ALTER TABLE public.profiles
+> ADD CONSTRAINT profiles_id_fkey
+> FOREIGN KEY (id)
+> REFERENCES auth.users(id)
+> ON DELETE CASCADE;
+> ```
+
 ### `groups` Table
 
 This table stores information about each friend group.
@@ -60,6 +74,7 @@ This table stores information about each friend group.
 | `owner_id`   | `uuid`        |                     | Foreign Key to `profiles.id`            |
 | `is_active`  | `bool`        | `false`             | Marks if a group is actively seeking a match |
 | `active_until`| `timestamptz`|                     | Expiration time for the active status     |
+| `location`   | `text`        |                     | The selected location for an active session |
 
 ### `group_members` Table
 
@@ -160,6 +175,41 @@ This table stores all individual chat messages for a given match.
 | `content`  | `text`        |               | The text of the message             |
 | `sent_at`  | `timestamptz` | `now()`       |                                     |
 
+### `push_tokens` Table
+
+This table stores the Expo push notification tokens for users.
+
+-   **Table Name:** `push_tokens`
+-   **Enable Row Level Security (RLS):** Yes
+
+**Columns:**
+
+| Name         | Type          | Default Value              | Notes                               |
+| :----------- | :------------ | :------------------------- | :---------------------------------- |
+| `id`         | `bigint`      | Is Identity                | Primary Key                         |
+| `user_id`    | `uuid`        |                            | Foreign Key to `public.profiles(id)`|
+| `token`      | `text`        |                            | Unique                            |
+| `created_at` | `timestamptz` | `now()`                    |                                     |
+
+### `group_invitations` Table
+
+This table tracks username-based invitations for users to join groups.
+
+-   **Table Name:** `group_invitations`
+-   **Enable Row Level Security (RLS):** Yes
+
+**Columns:**
+
+| Name         | Type          | Default Value        | Notes                               |
+| :----------- | :------------ | :------------------- | :---------------------------------- |
+| `id`         | `uuid`        | `gen_random_uuid()`  | Primary Key                         |
+| `group_id`   | `uuid`        |                      | Foreign Key to `public.groups(id)`  |
+| `inviter_id` | `uuid`        |                      | Foreign Key to `public.profiles(id)`|
+| `invitee_id` | `uuid`        |                      | Foreign Key to `public.profiles(id)`|
+| `status`     | `text`        | `'pending'`          | `pending`, `accepted`, `declined`   |
+| `created_at` | `timestamptz` | `now()`              |                                     |
+| `updated_at` | `timestamptz` | `now()`              |                                     |
+
 
 ## 3. Auto-Create Profile on Sign-Up
 
@@ -243,6 +293,19 @@ using ( is_active = true );
 create policy "Users can view groups they are a member of."
 on public.groups for select
 using ( is_member_of_group(auth.uid(), id) );
+
+-- (New) Allow users to view the profiles of groups they have matched with.
+create policy "Users can view groups they are matched with."
+on public.groups for select
+using (
+  exists (
+    select 1
+    from public.matches m
+    where
+      (m.group_1 = public.groups.id and m.group_2 in (select group_id from public.group_members where user_id = auth.uid())) or
+      (m.group_2 = public.groups.id and m.group_1 in (select group_id from public.group_members where user_id = auth.uid()))
+  )
+);
 ```
 
 ### Policies for `swipes` Table
@@ -312,6 +375,35 @@ with check (
 create policy "Authenticated users can read valid invites."
 on public.group_invites for select
 using ( auth.role() = 'authenticated' and expires_at > now() );
+```
+
+### Policies for `push_tokens` Table
+
+```sql
+-- Allow users to insert and manage their own push token.
+create policy "Users can insert and manage their own push tokens"
+on public.push_tokens for all
+using ( auth.uid() = user_id )
+with check ( auth.uid() = user_id );
+```
+
+### Policies for `group_invitations` Table
+
+```sql
+-- Allow users to see invitations sent to them.
+create policy "Users can see invitations sent to them"
+on public.group_invitations for select
+using ( auth.uid() = invitee_id );
+
+-- Allow users to see the invitations they have sent.
+create policy "Users can see invitations they have sent"
+on public.group_invitations for select
+using ( auth.uid() = inviter_id );
+
+-- Allow users to update their own pending invitations (to accept or decline).
+create policy "Users can update their own pending invitations (to accept/decline)"
+on public.group_invitations for update
+using ( auth.uid() = invitee_id and status = 'pending'::text );
 ```
 
 ### Policies for `group_photos`
@@ -438,6 +530,58 @@ returns void as $$
 -- ... function body
 $$ language plpgsql security definer;
 
+-- (New) Stores a user's push notification token securely.
+create function public.store_push_token(p_token text)
+returns void as $$
+begin
+    insert into public.push_tokens (user_id, token)
+    values (auth.uid(), p_token)
+    on conflict (token) do nothing;
+end;
+$$ language plpgsql security definer;
+
+-- (New) Searches for user profiles by username prefix.
+create function public.search_profiles(p_search_term text, p_group_id uuid)
+returns table (id uuid, username text, avatar_url text) as $$
+begin
+    return query
+    select p.id, p.username, p.avatar_url
+    from public.profiles p
+    where
+        p.username ilike p_search_term || '%' and
+        p.id <> auth.uid() and
+        not exists (
+            select 1 from public.group_members gm
+            where gm.group_id = p_group_id and gm.user_id = p.id
+        )
+    limit 5;
+end;
+$$ language plpgsql security definer;
+
+-- (New) Invites a user to a group by their username.
+create function public.invite_user_to_group(p_group_id uuid, p_invitee_username text)
+returns text as $$
+-- ... function body
+$$ language plpgsql security definer;
+
+-- (New) Responds to a group invitation.
+create function public.respond_to_group_invitation(p_invitation_id uuid, p_response text)
+returns text as $$
+-- ... function body
+$$ language plpgsql security definer;
+
+-- (New) Securely fetches a user's pending invitations.
+create function public.get_my_invites()
+returns table (id uuid, group_name text, inviter_username text) as $$
+-- ... function body
+$$ language plpgsql security definer;
+
+-- (New) Allows a group owner to delete a match and its associated chat history.
+create function public.delete_match(p_match_id UUID)
+returns void as $$
+-- ... function body
+$$ language plpgsql security definer;
+
 
 ### Helper and Utility Functions
 
@@ -454,7 +598,7 @@ $$ language sql stable security definer;
 
 -- (Updated) Renamed and simplified function for activating a group.
 drop function if exists public.set_active_group(uuid);
-create function public.activate_group(p_group_id UUID)
+create function public.activate_group(p_group_id UUID, p_duration_hours INT, p_location TEXT)
 returns void as $$
 -- ... function body
 $$ language plpgsql security definer;
@@ -492,7 +636,8 @@ $$ language plpgsql security definer;
 -- Gets a filtered list of groups for the swiping screen
 create function get_groups_for_swiping(p_swiping_group_id UUID)
 returns table (...) as $$
--- ... function body
+-- This function is now fully defined.
+-- It returns active groups based on the `active_until` timestamp.
 $$ language plpgsql security definer;
 ```
 
@@ -524,7 +669,83 @@ To prevent duplicate matches between the same two groups, a unique index must be
 create unique index unique_match_idx on public.matches (least(group_1, group_2), greatest(group_1, group_2));
 ```
 
-## 6. Database Views
+### User Account Deletion
+
+This function allows a user to permanently delete their own account. It deletes the user from `auth.users`, and the cascading delete on the `profiles` table handles the rest of the data cleanup.
+
+```sql
+create function public.delete_user_account()
+returns void as $$
+begin
+  delete from auth.users where id = auth.uid();
+end;
+$$ language plpgsql security definer;
+```
+
+## 6. Edge Functions & Triggers
+
+This section documents the triggers that invoke your Edge Functions. The code for the Edge Functions themselves lives in the `/supabase/functions` directory.
+
+### `send-push-notification` Trigger
+
+```sql
+-- This function is called by the trigger.
+create or replace function public.handle_new_message()
+returns trigger as $$
+declare
+  project_url text := 'https://<YOUR_PROJECT_REF>.supabase.co';
+  service_role_key text := '<YOUR_SERVICE_ROLE_KEY>'; -- It's recommended to manage this as a secret.
+begin
+  perform
+    net.http_post(
+      url := project_url || '/functions/v1/send-push-notification',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || service_role_key
+      ),
+      body := jsonb_build_object('record', new)
+    );
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- The trigger that fires after a new message is inserted.
+create or replace trigger on_new_message
+  after insert on public.messages
+  for each row execute procedure public.handle_new_message();
+```
+
+### `send-match-notification` Trigger
+
+```sql
+-- This function is called by the trigger.
+create or replace function public.handle_new_match()
+returns trigger as $$
+declare
+  project_url text := 'https://<YOUR_PROJECT_REF>.supabase.co';
+  service_role_key text := '<YOUR_SERVICE_ROLE_KEY>'; -- It's recommended to manage this as a secret.
+begin
+  perform
+    net.http_post(
+      url := project_url || '/functions/v1/send-match-notification',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || service_role_key
+      ),
+      body := jsonb_build_object('record', new)
+    );
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- The trigger that fires after a new match is created.
+create or replace trigger on_new_match
+  after insert on public.matches
+  for each row execute procedure public.handle_new_match();
+```
+
+
+## 7. Database Views
 
 Database views are virtual tables created from a query. They can simplify complex queries and help manage security.
 
@@ -533,13 +754,15 @@ Database views are virtual tables created from a query. They can simplify comple
 This view joins the `matches` and `groups` tables to provide the names of both groups involved in a match. This simplifies fetching match data in the app. The view is automatically secured by the RLS policies on the underlying `matches` and `groups` tables.
 
 ```sql
-create view public.match_details as
+create or replace view public.match_details as
 select
   m.id as match_id,
   m.group_1,
   m.group_2,
   g1.name as group_1_name,
-  g2.name as group_2_name
+  g2.name as group_2_name,
+  g1.photo_url as group_1_photo,
+  g2.photo_url as group_2_photo
 from
   public.matches m
   join public.groups g1 on m.group_1 = g1.id

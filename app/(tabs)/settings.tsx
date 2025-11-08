@@ -1,16 +1,16 @@
-import { View, StyleSheet, Pressable, Text } from 'react-native';
+import { View, StyleSheet, Pressable, Text, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNotifications } from '../../hooks/useNotifications';
-import { useState } from 'react';
+import { useAuth } from '../../providers/SessionProvider';
 
 export default function SettingsScreen() {
+  const { session, loading } = useAuth();
   const { registerForPushNotificationsAsync } = useNotifications();
-  const [token, setToken] = useState<string | undefined>();
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
 
@@ -29,25 +29,24 @@ export default function SettingsScreen() {
     });
   }, []);
 
+  // Automatically try to register for notifications once the session is loaded
+  useEffect(() => {
+    if (!loading && session) {
+      registerForPushNotificationsAsync();
+    }
+  }, [loading, session]);
+
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.testBox, animatedStyle]}>
         <Text style={styles.testBoxText}>Reanimated is working!</Text>
       </Animated.View>
 
-      <Pressable
-        style={styles.menuItem}
-        onPress={async () => {
-          const token = await registerForPushNotificationsAsync();
-          setToken(token);
-        }}
-      >
+      <Pressable style={styles.menuItem} onPress={() => Linking.openSettings()}>
         <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
-        <Text style={styles.menuItemText}>Enable Notifications</Text>
+        <Text style={styles.menuItemText}>Manage Notifications</Text>
         <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
       </Pressable>
-
-      {token && <Text>Token: {token}</Text>}
 
       <Pressable style={styles.menuItem} onPress={() => router.push('/profile/edit')}>
         <Ionicons name="person-circle-outline" size={24} color={theme.colors.textSecondary} />

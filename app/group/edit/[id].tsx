@@ -17,12 +17,17 @@ import { supabase } from '../../../lib/supabase';
 import ImageUploader from '../../components/ImageUploader';
 import { theme } from '../../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../../providers/SessionProvider';
+import { useGroups } from '../../../providers/GroupsProvider';
 
 export default function EditGroupScreen() {
   const { id: groupId } = useLocalSearchParams();
+  const { session } = useAuth();
+  const { fetchGroups } = useGroups();
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [ownerId, setOwnerId] = useState('');
   const [galleryPhotos, setGalleryPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +37,7 @@ export default function EditGroupScreen() {
 
     const { data: groupData, error: groupError } = await supabase
       .from('groups')
-      .select('name, bio, photo_url')
+      .select('name, bio, photo_url, owner_id')
       .eq('id', groupId)
       .single();
 
@@ -45,6 +50,7 @@ export default function EditGroupScreen() {
     setName(groupData.name);
     setBio(groupData.bio || '');
     setPhotoUrl(groupData.photo_url || '');
+    setOwnerId(groupData.owner_id);
 
     const { data: photosData, error: photosError } = await supabase
       .from('group_photos')
@@ -104,6 +110,27 @@ export default function EditGroupScreen() {
       Alert.alert('Success', 'Group updated successfully.');
       router.back();
     }
+  };
+
+  const handleDeleteGroup = async () => {
+    Alert.alert('Confirm Delete', 'Are you sure you want to permanently delete this group? This action cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          if (typeof groupId !== 'string') return;
+          const { error } = await supabase.rpc('delete_group', { p_group_id: groupId });
+          if (error) {
+            Alert.alert('Error', 'Failed to delete group.');
+          } else {
+            Alert.alert('Success', 'Group has been deleted.');
+            await fetchGroups(); // Refresh the main groups list
+            router.replace('/(tabs)'); // Navigate back to the home screen
+          }
+        },
+      },
+    ]);
   };
 
   if (loading) {
@@ -182,6 +209,17 @@ export default function EditGroupScreen() {
       <Pressable style={styles.button} onPress={handleUpdate}>
         <Text style={styles.buttonText}>Save Changes</Text>
       </Pressable>
+
+      {session?.user.id === ownerId && (
+        <Pressable
+          style={[styles.button, styles.destructiveButton]}
+          onPress={handleDeleteGroup}
+        >
+          <Text style={[styles.buttonText, { color: theme.colors.error }]}>
+            Delete Group
+          </Text>
+        </Pressable>
+      )}
     </ScrollView>
   );
 }
@@ -271,5 +309,10 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontFamily: theme.typography.fonts.medium,
     fontSize: theme.typography.fontSizes.m,
+  },
+  destructiveButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.error,
   },
 });

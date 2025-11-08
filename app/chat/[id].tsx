@@ -10,8 +10,9 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useLocalSearchParams, useNavigation, router } from 'expo-router';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../providers/SessionProvider';
@@ -191,14 +192,16 @@ export default function ChatScreen() {
               ]}
             >
               {!isMyMessage && (
-                <Image
-                  source={
-                    item.profiles?.avatar_url
-                      ? { uri: item.profiles.avatar_url }
-                      : require('../../assets/placeholder-avatar.png')
-                  }
-                  style={styles.avatar}
-                />
+                <TouchableOpacity onPress={() => router.push(`/profile/${item.sender_id}`)}>
+                  <Image
+                    source={
+                      item.profiles?.avatar_url
+                        ? { uri: item.profiles.avatar_url }
+                        : require('../../assets/placeholder-avatar.png')
+                    }
+                    style={styles.avatar}
+                  />
+                </TouchableOpacity>
               )}
               <View style={[styles.messageBubble, isMyMessage ? styles.myMessage : styles.otherMessage]}>
                 {!isMyMessage && (

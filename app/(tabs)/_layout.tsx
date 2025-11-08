@@ -1,7 +1,7 @@
-import { Tabs, router } from 'expo-router';
 import { Pressable, View } from 'react-native';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
+import { Tabs, router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../lib/theme';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import { HeaderAnimationProvider, useHeaderAnimation } from '../../providers/HeaderAnimationProvider';
@@ -82,17 +82,17 @@ function TabsLayoutComponent() {
         name="index"
         options={{
           title: 'My Groups',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="home" size={28} color={color} />,
           headerTransparent: true,
           headerTitle: () => <AnimatedHeaderTitle text="My Groups" />,
           headerBackground: () => <AnimatedHeader />,
           headerRight: () => (
-            <View style={{ flexDirection: 'row', marginRight: 16, gap: 16 }}>
-              <Pressable onPress={() => router.push('/create-group')}>
-                <Ionicons name="add-circle-outline" size={24} color={theme.colors.primary} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 15 }}>
+              <Pressable onPress={() => router.push('/invites')} style={{ marginRight: 15 }}>
+                <Ionicons name="mail-outline" size={28} color={theme.colors.textSecondary} />
               </Pressable>
-              <Pressable onPress={() => router.push('/join-group')}>
-                <Ionicons name="enter-outline" size={24} color={theme.colors.primary} />
+              <Pressable onPress={() => router.push('/create-group')}>
+                <Ionicons name="add-circle-outline" size={28} color={theme.colors.primary} />
               </Pressable>
             </View>
           ),

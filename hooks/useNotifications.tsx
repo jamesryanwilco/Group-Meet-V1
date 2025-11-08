@@ -3,7 +3,6 @@ import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../providers/SessionProvider';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -14,7 +13,6 @@ Notifications.setNotificationHandler({
 });
 
 export const useNotifications = () => {
-  const { session } = useAuth();
   const [expoPushToken, setExpoPushToken] = useState<string | undefined>();
   const [notification, setNotification] =
     useState<Notifications.Notification | undefined>();
@@ -32,13 +30,14 @@ export const useNotifications = () => {
         finalStatus = status;
       }
       if (finalStatus !== 'granted') {
-        alert('Failed to get push token for push notification!');
+        // We will not alert here, as the user can manage it in settings
         return;
       }
       token = (await Notifications.getExpoPushTokenAsync()).data;
       console.log(token);
     } else {
-      alert('Must use physical device for Push Notifications');
+      // Don't alert in this case either, just log.
+      console.log('Must use physical device for Push Notifications');
     }
 
     if (Platform.OS === 'android') {
@@ -50,10 +49,10 @@ export const useNotifications = () => {
       });
     }
 
-    if (token && session?.user.id) {
-      const { error } = await supabase
-        .from('push_tokens')
-        .upsert({ token, user_id: session.user.id }, { onConflict: 'token' });
+    if (token) {
+      const { error } = await supabase.rpc('store_push_token', {
+        p_token: token,
+      });
       if (error) {
         console.error('Failed to save push token:', error);
       }

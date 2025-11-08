@@ -18,6 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jamesryanwilco.groupmeet",
+      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -28,6 +29,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.jamesryanwilco.groupmeet",
+      "versionCode": 4,
       "edgeToEdgeEnabled": true
     },
     "web": {

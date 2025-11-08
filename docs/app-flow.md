@@ -31,9 +31,12 @@ This document details the step-by-step user journey for the Group-to-Group Meetu
 
 ## 4. Going Active (Finding a Match)
 
-1.  **Activate Session:** On a group's detail screen, any member can tap "Go Active." This makes their group visible to other active groups for a set period (e.g., 4 hours). Multiple groups can be active simultaneously.
-2.  **Start Swiping:** Once a group is active, a "Start Swiping" button appears. Tapping this takes the user to the matching screen for that specific group.
-3.  **Confirmation:** The app confirms the group is now "active." The user can now proceed to the swiping interface.
+1.  **Activate Session:** On a group's detail screen, any member can tap "Go Active," provided the group has at least two members. This opens a full-screen modal.
+2.  **Set Activation Details:** In the modal, the user can:
+    *   Select a duration (from 1 to 24 hours) using a slider.
+    *   Choose a location for the meetup (currently defaults to London).
+3.  **Confirmation:** After confirming the details, the group becomes "active" for the chosen duration, making it visible to other active groups in the selected location.
+4.  **Start Swiping:** Once a group is active, a "Start Swiping" button appears. Tapping this takes the user to the matching screen for that specific group.
 
 ## 5. Swiping & Matching
 
@@ -44,6 +47,8 @@ This document details the step-by-step user journey for the Group-to-Group Meetu
 
 ## 6. Chat & Meetup
 
-1.  **Group Chat Unlocked:** A shared group chat is automatically created for the two matched groups.
-2.  **In-App Chat:** Members from both groups can now chat to coordinate a meetup.
-3.  **Session End:** The chat remains open, but the "active" session ends after the defined time window expires.
+1.  **View Matches:** From their own group's detail page, a user can see a list of all their matches.
+2.  **View Matched Group Profile:** Tapping on a match navigates the user to the matched group's profile page, where they can see that group's photos and member list.
+3.  **Unmatch or Chat:** From the matched group's profile, the user can choose to either open the chat or, if they are their group's owner, unmatch the group.
+4.  **In-App Chat:** After navigating to the chat, members from both groups can now chat to coordinate a meetup. The chat remains open until a group owner decides to unmatch.
+5.  **Session End:** The "active" session for matching ends after the defined time window expires, but all existing matches and chats remain accessible.

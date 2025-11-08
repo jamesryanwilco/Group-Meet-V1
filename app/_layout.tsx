@@ -45,10 +45,6 @@ const AppLayout = () => {
       <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false }} />
       <Stack.Screen
-        name="join-group"
-        options={{ presentation: 'modal', title: 'Join a Group' }}
-      />
-      <Stack.Screen
         name="create-group"
         options={{ presentation: 'modal', title: 'Create a Group' }}
       />
@@ -56,11 +52,19 @@ const AppLayout = () => {
         name="group/[id]"
         options={{
           title: 'Group Details',
+          headerBackTitle: 'Back',
         }}
       />
       <Stack.Screen
         name="group/edit/[id]"
         options={{ presentation: 'modal', title: 'Edit Group' }}
+      />
+      <Stack.Screen
+        name="matched-group/[id]"
+        options={{
+          title: 'Group Profile',
+          headerBackTitle: 'Back',
+        }}
       />
       <Stack.Screen name="profile/edit" options={{ presentation: 'modal', title: 'Edit Profile' }} />
       <Stack.Screen name="matching" options={{ title: 'Find a Match' }} />

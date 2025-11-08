@@ -10,10 +10,46 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import AvatarUploader from '../components/AvatarUploader';
 import { useAuth } from '../../providers/SessionProvider';
 import { theme } from '../../lib/theme';
+
+const handleDeleteAccount = () => {
+  Alert.alert(
+    'Delete Account',
+    'Are you sure you want to delete your account? This action is irreversible and will permanently delete all of your data.',
+    [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase.rpc('delete_user_account');
+          if (error) {
+            Alert.alert('Error', 'There was an error deleting your account. Please try again.');
+            console.error(error);
+          } else {
+            Alert.alert('Success', 'Your account has been successfully deleted.', [
+              {
+                text: 'OK',
+                onPress: async () => {
+                  // Explicitly sign out to clear the session and trigger redirect
+                  await supabase.auth.signOut();
+                  router.replace('/sign-in');
+                },
+              },
+            ]);
+          }
+        },
+      },
+    ]
+  );
+};
 
 export default function EditProfileScreen() {
   const { session } = useAuth();
@@ -101,6 +137,14 @@ export default function EditProfileScreen() {
       <Pressable style={styles.button} onPress={handleUpdate}>
         <Text style={styles.buttonText}>Save Changes</Text>
       </Pressable>
+
+      <Pressable
+        style={[styles.button, styles.deleteButton]}
+        onPress={handleDeleteAccount}
+      >
+        <Ionicons name="trash-outline" size={20} color={'white'} />
+        <Text style={styles.buttonText}>Delete Account</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -140,5 +184,12 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontFamily: theme.typography.fonts.medium,
     fontSize: theme.typography.fontSizes.m,
+  },
+  deleteButton: {
+    backgroundColor: theme.colors.error,
+    marginTop: theme.spacing.l,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: theme.spacing.s,
   },
 });

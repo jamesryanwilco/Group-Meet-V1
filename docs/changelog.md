@@ -1,6 +1,28 @@
-# Project Changelog
+# Changelog
 
-This document summarizes the major features, improvements, and bug fixes implemented in the project.
+## [Version 1.2.0] - Unreleased
+
+### Added
+- **Username-based Invitation System:** Overhauled the group invite system. Users can now be invited directly by their username instead of using expiring invite codes.
+  - Implemented a new "Invites" screen for users to view and respond to pending group invitations.
+  - Added a user search/autocomplete feature when sending invitations.
+  - The "Invites" link has been moved from the tab bar to the header of the "My Groups" screen for a cleaner UI.
+- **Push Notifications:** Implemented a full end-to-end push notification system.
+  - Users now receive notifications for new chat messages and new group matches.
+  - Added a "Manage Notifications" button in the settings screen that links to the device's system settings for the app.
+- **Clickable Avatars in Chat:** Users can now tap on another user's avatar within a chat screen to navigate to their public profile page.
+- **Public User Profiles:** Created a new screen to display a user's public profile (avatar and username).
+
+### Changed
+- **Avatar Uploader UI:** The avatar uploader component on the "Edit Profile" screen now displays the user's current avatar.
+
+### Removed
+- **Invite Code System:** The previous system of joining groups via a 6-character, expiring invite code has been completely removed from the UI and codebase.
+
+## [Version 1.1.0]
+
+### Added
+- **Multi-Group Functionality:** Users can now create, join, and be a member of multiple groups simultaneously.
 
 ### 1. Complete Visual Overhaul ("Midnight Teal" Theme)
 
